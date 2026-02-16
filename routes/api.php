@@ -5,14 +5,23 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CustomerController;
 
 use App\Http\Controllers\AuthController;
+use Illuminate\Support\Facades\Validator;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
+
 Route::middleware('auth:api')->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/profile', [AuthController::class, 'profile']);
+    Route::post('logout', [AuthController::class, 'logout']);
+    Route::get('profile', [AuthController::class, 'profile']);
 });
 
 
-Route::post('/customers', [CustomerController::class, 'store']);
+Route::post('customers', [CustomerController::class, 'store']);
+
+Route::get('test', function () {
+    return "API WORKING";
+});
+
+Route::post('customers', [CustomerController::class, 'store'])->middleware('auth:api');
+
