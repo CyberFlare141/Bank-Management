@@ -64,4 +64,3 @@ class AuthController extends Controller
         return response()->json(Auth::guard('api')->user());
     }
 }
-
