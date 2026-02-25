@@ -19,7 +19,7 @@
             </a>
 
             <nav class="main-nav" aria-label="Main navigation">
-                <a href="#personal">Personal</a>
+                <a href="{{ route('personal.dashboard') }}">Personal</a>
                 <a href="#business">Business</a>
                 <a href="#cards">Cards</a>
                 <a href="#loans">Loans</a>

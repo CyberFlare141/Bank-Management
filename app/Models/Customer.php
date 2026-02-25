@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Customer extends Model
 {
@@ -15,14 +17,28 @@ class Customer extends Model
         'C_Email'
     ];
 
-    public function accounts()
+    public function accounts(): HasMany
     {
         return $this->hasMany(Account::class, 'C_ID');
     }
 
-    public function loans()
+    public function account(): HasOne
+    {
+        return $this->hasOne(Account::class, 'C_ID');
+    }
+
+    public function loans(): HasMany
     {
         return $this->hasMany(Loan::class, 'C_ID');
     }
-}
 
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class, 'C_ID');
+    }
+
+    public function creditCard(): HasOne
+    {
+        return $this->hasOne(CreditCard::class, 'C_ID');
+    }
+}
