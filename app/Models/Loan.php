@@ -17,6 +17,7 @@ class Loan extends Model
         'Interest_Rate',
         'remaining_amount',
         'status',
+        'last_interest_applied_at',
     ];
 
     protected function casts(): array
@@ -25,6 +26,7 @@ class Loan extends Model
             'L_Amount' => 'decimal:2',
             'Interest_Rate' => 'decimal:2',
             'remaining_amount' => 'decimal:2',
+            'last_interest_applied_at' => 'datetime',
         ];
     }
 

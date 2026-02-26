@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -22,6 +23,8 @@ class LoanController extends Controller
 {
     private const INSTANT_LOAN_MIN_AMOUNT = 5000;
     private const INSTANT_LOAN_MAX_AMOUNT = 30000;
+    private const MONTHLY_INTEREST_ELIGIBLE_MAX_AMOUNT = 30000;
+    private const MONTHLY_INTEREST_RATE = 0.09;
     private const PROCESSING_DELAY_SECONDS = 10;
     private const OTP_EXPIRY_MINUTES = 5;
     private const OTP_MAX_ATTEMPTS = 3;
@@ -40,6 +43,9 @@ class LoanController extends Controller
             'account',
             'loans' => fn ($query) => $query->latest('created_at'),
         ]);
+
+        $this->applyMonthlyInterestForEligibleLoans($user->loans);
+        $user->load('loans');
 
         $loanRequests = $customer
             ? LoanRequest::query()
@@ -314,6 +320,9 @@ class LoanController extends Controller
             return back()->with('loan_error', 'Selected loan was not found for this account.');
         }
 
+        $this->applyMonthlyInterestToLoan($loan);
+        $loan->refresh();
+
         $rawRemaining = (float) ($loan->remaining_amount ?? $loan->L_Amount);
         if ($rawRemaining <= 0) {
             return back()->with('loan_error', 'This loan is already fully paid.');
@@ -508,5 +517,62 @@ class LoanController extends Controller
             'user_id' => $userId,
             'email' => $this->maskEmail($email),
         ]);
+    }
+
+    private function applyMonthlyInterestForEligibleLoans(Collection $loans): void
+    {
+        $loans->each(function (Loan $loan): void {
+            $this->applyMonthlyInterestToLoan($loan);
+        });
+    }
+
+    private function applyMonthlyInterestToLoan(Loan $loan): void
+    {
+        $originalAmount = (float) $loan->L_Amount;
+        $remainingAmount = (float) ($loan->remaining_amount ?? $loan->L_Amount);
+        $status = strtolower((string) ($loan->status ?? 'active'));
+
+        if ($originalAmount > self::MONTHLY_INTEREST_ELIGIBLE_MAX_AMOUNT || $remainingAmount <= 0) {
+            return;
+        }
+
+        if (!in_array($status, ['active', 'ongoing', 'in_progress'], true)) {
+            return;
+        }
+
+        DB::transaction(function () use ($loan): void {
+            $freshLoan = Loan::query()
+                ->where('L_ID', $loan->L_ID)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$freshLoan) {
+                return;
+            }
+
+            $freshRemaining = (float) ($freshLoan->remaining_amount ?? $freshLoan->L_Amount);
+            if ($freshRemaining <= 0) {
+                return;
+            }
+
+            $appliedBase = $freshLoan->last_interest_applied_at
+                ? Carbon::parse($freshLoan->last_interest_applied_at)
+                : Carbon::parse($freshLoan->created_at);
+
+            $freshMonthsElapsed = max(0, $appliedBase->diffInMonths(now()));
+            if ($freshMonthsElapsed < 1) {
+                return;
+            }
+
+            $freshNewRemaining = $freshRemaining;
+            for ($i = 0; $i < $freshMonthsElapsed; $i++) {
+                $freshNewRemaining = round($freshNewRemaining * (1 + self::MONTHLY_INTEREST_RATE), 2);
+            }
+
+            $freshLoan->remaining_amount = $freshNewRemaining;
+            $freshLoan->Interest_Rate = 9;
+            $freshLoan->last_interest_applied_at = $appliedBase->copy()->addMonthsNoOverflow($freshMonthsElapsed);
+            $freshLoan->save();
+        });
     }
 }
