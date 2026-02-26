@@ -28,8 +28,23 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'account_number' => ['required', 'integer'],
+            'account_number' => ['required', 'digits:11'],
+            'email' => ['nullable', 'string', 'email'],
+            'phone_number' => ['nullable', 'string'],
             'password' => ['required', 'string'],
+        ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            $email = trim((string) $this->string('email'));
+            $phone = trim((string) $this->string('phone_number'));
+
+            if ($email === '' && $phone === '') {
+                $validator->errors()->add('email', 'Email or phone number is required.');
+                $validator->errors()->add('phone_number', 'Email or phone number is required.');
+            }
         ];
     }
 
@@ -43,6 +58,10 @@ class LoginRequest extends FormRequest
         $this->ensureIsNotRateLimited();
 
         $accountNumber = (int) $this->integer('account_number');
+        $emailInput = trim((string) $this->string('email'));
+        $phoneInput = trim((string) $this->string('phone_number'));
+        $password = (string) $this->string('password');
+        $remember = $this->boolean('remember');
 
         $customer = Customer::query()
             ->whereHas('accounts', function ($query) use ($accountNumber) {
@@ -50,18 +69,39 @@ class LoginRequest extends FormRequest
             })
             ->first();
 
-        if (! $customer?->C_Email || ! Auth::attempt([
-            'email' => $customer->C_Email,
-            'password' => (string) $this->string('password'),
-        ], $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
+        if (! $customer?->C_Email) {
+            $this->failAuthentication();
+        }
 
+        if ($emailInput !== '' && strcasecmp($emailInput, (string) $customer->C_Email) !== 0) {
             throw ValidationException::withMessages([
-                'account_number' => trans('auth.failed'),
+                'email' => trans('auth.failed'),
             ]);
         }
 
+        if ($phoneInput !== '' && ! $this->phonesMatch($phoneInput, (string) $customer->C_PhoneNumber)) {
+            throw ValidationException::withMessages([
+                'phone_number' => trans('auth.failed'),
+            ]);
+        }
+
+        if (! Auth::attempt([
+            'email' => $customer->C_Email,
+            'password' => $password,
+        ], $remember)) {
+            $this->failAuthentication();
+        }
+
         RateLimiter::clear($this->throttleKey());
+    }
+
+    private function failAuthentication(): void
+    {
+        RateLimiter::hit($this->throttleKey());
+
+        throw ValidationException::withMessages([
+            'account_number' => trans('auth.failed'),
+        ]);
     }
 
     /**
@@ -93,7 +133,21 @@ class LoginRequest extends FormRequest
     public function throttleKey(): string
     {
         $accountNumber = (string) $this->string('account_number');
+        $email = (string) $this->string('email');
+        $phone = (string) $this->string('phone_number');
 
-        return Str::transliterate($accountNumber.'|'.$this->ip());
+        return Str::transliterate($accountNumber.'|'.$email.'|'.$phone.'|'.$this->ip());
+    }
+
+    private function phonesMatch(string $input, string $stored): bool
+    {
+        $inputDigits = preg_replace('/\D/', '', $input);
+        $storedDigits = preg_replace('/\D/', '', $stored);
+
+        if ($inputDigits !== '' && $storedDigits !== '') {
+            return $inputDigits === $storedDigits;
+        }
+
+        return trim($input) !== '' && trim($stored) !== '' && $input === $stored;
     }
 }
