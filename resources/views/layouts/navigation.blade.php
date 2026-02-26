@@ -19,6 +19,9 @@
                     <x-nav-link :href="route('personal.dashboard')" :active="request()->routeIs('personal.dashboard')">
                         {{ __('Personal') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('personal.loan')" :active="request()->routeIs('personal.loan')">
+                        {{ __('Loans') }}
+                    </x-nav-link>
                 </div>
             </div>
 
@@ -76,6 +79,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('personal.dashboard')" :active="request()->routeIs('personal.dashboard')">
                 {{ __('Personal') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('personal.loan')" :active="request()->routeIs('personal.loan')">
+                {{ __('Loans') }}
             </x-responsive-nav-link>
         </div>
 

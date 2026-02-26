@@ -22,7 +22,7 @@
                 <a href="{{ route('personal.dashboard') }}">Personal</a>
                 <a href="#business">Business</a>
                 <a href="#cards">Cards</a>
-                <a href="#loans">Loans</a>
+                <a href="{{ auth()->check() ? route('personal.loan') : route('login') }}">Loans</a>
                 <a href="#insights">Insights</a>
             </nav>
 
@@ -108,7 +108,7 @@
                     <article id="loans" class="card">
                         <h3>Home Finance</h3>
                         <p>Transparent mortgage process with fast pre-approval and flexible tenures.</p>
-                        <a href="#">Explore</a>
+                        <a href="{{ auth()->check() ? route('personal.loan') : route('login') }}">Explore</a>
                     </article>
                 </div>
             </section>

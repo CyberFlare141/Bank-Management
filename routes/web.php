@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PersonalDashboardController;
+use App\Http\Controllers\LoanController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -9,11 +10,14 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('/dashboard', function () {
-    return view('dashboard');
+    return redirect()->route('personal.dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/personal', [PersonalDashboardController::class, 'index'])->name('personal.dashboard');
+    Route::get('/personal/loan', [LoanController::class, 'index'])->name('personal.loan');
+    Route::post('/personal/loan/take', [LoanController::class, 'take'])->name('personal.loan.take');
+    Route::post('/personal/loan/repay', [LoanController::class, 'repay'])->name('personal.loan.repay');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
