@@ -139,6 +139,54 @@
             justify-content: space-between;
             gap: 1rem;
         }
+
+        .db-topbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 1.1rem;
+        }
+
+        .db-topbar-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .db-topbar-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(45,126,247,0.25);
+            background: rgba(9, 19, 35, 0.55);
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .db-topbar-btn:hover {
+            border-color: var(--border-hi);
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(2,11,24,0.4);
+        }
+
+        .db-topbar-btn.primary {
+            background: linear-gradient(135deg, rgba(45,126,247,0.25), rgba(13,217,240,0.12));
+            border-color: rgba(45,126,247,0.5);
+            box-shadow: 0 0 16px rgba(45,126,247,0.2);
+        }
+
+        .db-topbar-btn.back {
+            background: transparent;
+            cursor: pointer;
+        }
         .db-user-row {
             display: flex;
             align-items: center;
@@ -705,6 +753,14 @@
         </div>
 
         <div class="db-wrap py-6 sm:py-8">
+            <div class="db-topbar">
+                <div class="db-topbar-links">
+                    <a href="{{ route('home') }}" class="db-topbar-btn">Home</a>
+                    <a href="{{ route('profile.edit') }}" class="db-topbar-btn primary">Profile</a>
+                    <a href="{{ route('personal.dashboard') }}" class="db-topbar-btn">Personal Dashboard</a>
+                </div>
+                <button type="button" onclick="history.back()" class="db-topbar-btn back">Back</button>
+            </div>
 
             {{-- WELCOME HEADER --}}
             <div class="db-card db-s1">

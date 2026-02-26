@@ -81,6 +81,53 @@
             background: #38bdf8;
         }
 
+        .profile-topbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 22px;
+        }
+
+        .profile-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .profile-nav-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 1px solid #1e2d45;
+            background: rgba(15, 22, 35, 0.65);
+            color: #cbd5e0;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .profile-nav-btn:hover {
+            border-color: #2a3f5f;
+            color: #f1f5f9;
+            transform: translateY(-1px);
+        }
+
+        .profile-nav-btn.primary {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(34, 211, 238, 0.12));
+            border-color: rgba(56, 189, 248, 0.4);
+            color: #e0f2fe;
+        }
+
+        .profile-back-btn {
+            background: transparent;
+            cursor: pointer;
+        }
+
         .page-title {
             font-size: 30px;
             font-weight: 800;
@@ -395,6 +442,14 @@
         <div class="bg-glow-2"></div>
 
         <div class="profile-wrap">
+            <div class="profile-topbar">
+                <div class="profile-nav">
+                    <a href="{{ route('home') }}" class="profile-nav-btn">Home</a>
+                    <a href="{{ route('personal.dashboard') }}" class="profile-nav-btn primary">Personal Dashboard</a>
+                    <a href="{{ route('profile.edit') }}" class="profile-nav-btn">Profile</a>
+                </div>
+                <button type="button" onclick="history.back()" class="profile-nav-btn profile-back-btn">Back</button>
+            </div>
 
             <p class="page-eyebrow">Account Management</p>
             <h1 class="page-title">Your Profile</h1>
