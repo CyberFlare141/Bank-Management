@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\Customer;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
@@ -27,7 +28,7 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
+            'account_number' => ['required', 'integer'],
             'password' => ['required', 'string'],
         ];
     }
@@ -41,11 +42,22 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        $accountNumber = (int) $this->integer('account_number');
+
+        $customer = Customer::query()
+            ->whereHas('accounts', function ($query) use ($accountNumber) {
+                $query->where('A_Number', $accountNumber);
+            })
+            ->first();
+
+        if (! $customer?->C_Email || ! Auth::attempt([
+            'email' => $customer->C_Email,
+            'password' => (string) $this->string('password'),
+        ], $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
+                'account_number' => trans('auth.failed'),
             ]);
         }
 
@@ -68,7 +80,7 @@ class LoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
+            'account_number' => trans('auth.throttle', [
                 'seconds' => $seconds,
                 'minutes' => ceil($seconds / 60),
             ]),
@@ -80,6 +92,8 @@ class LoginRequest extends FormRequest
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        $accountNumber = (string) $this->string('account_number');
+
+        return Str::transliterate($accountNumber.'|'.$this->ip());
     }
 }

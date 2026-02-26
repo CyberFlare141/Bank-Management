@@ -4,23 +4,49 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\Loan;
+use App\Models\LoanRequest;
 use App\Models\Transaction;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
+use App\Mail\LoanOtpMail;
 
 class LoanController extends Controller
 {
+    private const INSTANT_LOAN_MIN_AMOUNT = 5000;
+    private const INSTANT_LOAN_MAX_AMOUNT = 30000;
+    private const PROCESSING_DELAY_SECONDS = 10;
+    private const OTP_EXPIRY_MINUTES = 5;
+    private const OTP_MAX_ATTEMPTS = 3;
+
     public function index(): View
     {
         $user = auth()->user();
+        $customer = $user->customer;
+        $account = $user->account;
+
+        if ($customer && $account) {
+            $this->processPendingLoanRequests($customer->C_ID, $account->A_Number);
+        }
 
         $user->load([
             'account',
             'loans' => fn ($query) => $query->latest('created_at'),
         ]);
+
+        $loanRequests = $customer
+            ? LoanRequest::query()
+                ->where('C_ID', $customer->C_ID)
+                ->latest('created_at')
+                ->get()
+            : collect();
 
         [$activeLoans, $loanSummary] = $this->buildLoanSummary($user->loans, (float) ($user->account->A_Balance ?? 0));
 
@@ -29,15 +55,24 @@ class LoanController extends Controller
             'loans' => $user->loans,
             'activeLoans' => $activeLoans,
             'loanSummary' => $loanSummary,
+            'loanRequests' => $loanRequests,
+            'canRequestLoan' => (bool) ($customer && $account),
+            'hasOtpEmail' => $this->resolveOtpEmail($user) !== '',
+            'instantLoanMinAmount' => self::INSTANT_LOAN_MIN_AMOUNT,
+            'instantLoanMaxAmount' => self::INSTANT_LOAN_MAX_AMOUNT,
         ]);
     }
 
-    public function take(Request $request): RedirectResponse
+    public function requestPasswordVerification(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'loan_type' => ['nullable', 'string', 'max:255'],
-            'loan_amount' => ['required', 'numeric', 'min:0.01'],
-            'interest_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'requested_amount' => [
+                'required',
+                'numeric',
+                'min:' . self::INSTANT_LOAN_MIN_AMOUNT,
+                'max:' . self::INSTANT_LOAN_MAX_AMOUNT,
+            ],
+            'password' => ['required', 'string'],
         ]);
 
         $user = auth()->user();
@@ -45,40 +80,217 @@ class LoanController extends Controller
         $account = $user->account;
 
         if (!$customer || !$account) {
-            return back()->with('loan_error', 'Customer profile or account is missing for this user.');
+            return response()->json([
+                'message' => 'Customer profile or account is missing. Please complete your profile and create an account first.',
+            ], 422);
         }
 
-        $branchId = $user->loans()->value('B_ID') ?? Branch::query()->value('B_ID');
+        if (!Hash::check((string) $validated['password'], (string) $user->password)) {
+            return response()->json([
+                'message' => 'Incorrect account password.',
+            ], 422);
+        }
+
+        $otpEmail = $this->resolveOtpEmail($user);
+        if ($otpEmail === '') {
+            return response()->json([
+                'message' => 'No registered email found for this user. Please update your profile email first.',
+            ], 422);
+        }
+
+        $requestedAmount = round((float) $validated['requested_amount'], 2);
+        $branchId = $this->resolveBranchIdForLoan($user);
 
         if (!$branchId) {
-            return back()->with('loan_error', 'No branch is available to issue a loan.');
+            return response()->json([
+                'message' => 'No branch is available to issue a loan.',
+            ], 422);
         }
 
-        DB::transaction(function () use ($validated, $customer, $account, $branchId): void {
-            $loanAmount = (float) $validated['loan_amount'];
+        if ($this->hasOutstandingLoan((int) $customer->C_ID)) {
+            return response()->json([
+                'message' => 'You already have an unpaid loan. Repay it before requesting a new loan.',
+            ], 422);
+        }
 
-            Loan::create([
-                'C_ID' => $customer->C_ID,
-                'B_ID' => $branchId,
-                'L_Type' => $validated['loan_type'] ?? 'Personal Loan',
-                'L_Amount' => $loanAmount,
-                'remaining_amount' => $loanAmount,
-                'Interest_Rate' => (float) ($validated['interest_rate'] ?? 0),
-                'status' => 'active',
+        $otp = (string) random_int(100000, 999999);
+        $expiresAt = now()->addMinutes(self::OTP_EXPIRY_MINUTES);
+        Cache::put($this->otpCacheKey((int) $user->id), [
+            'customer_id' => (int) $customer->C_ID,
+            'account_number' => (int) $account->A_Number,
+            'branch_id' => (int) $branchId,
+            'requested_amount' => $requestedAmount,
+            'otp_hash' => Hash::make($otp),
+            'attempts_left' => self::OTP_MAX_ATTEMPTS,
+            'expires_at' => $expiresAt->timestamp,
+        ], $expiresAt);
+
+        try {
+            $this->sendLoanOtpToEmail($otpEmail, $otp, (int) $user->id);
+        } catch (\Throwable $e) {
+            Log::error('Failed to send loan OTP.', [
+                'user_id' => (int) $user->id,
+                'error' => $e->getMessage(),
             ]);
 
-            $account->increment('A_Balance', $loanAmount);
+            return response()->json([
+                'message' => 'Failed to send OTP. Please try again.',
+            ], 500);
+        }
 
-            Transaction::create([
-                'A_Number' => $account->A_Number,
-                'C_ID' => $customer->C_ID,
-                'T_Type' => 'Loan Disbursement',
-                'T_Amount' => $loanAmount,
-                'T_Date' => now(),
+        return response()->json([
+            'message' => 'OTP sent to your registered email.',
+            'masked_email' => $this->maskEmail($otpEmail),
+            'expires_in_seconds' => self::OTP_EXPIRY_MINUTES * 60,
+        ]);
+    }
+
+    public function verifyOtpAndDisburse(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'otp' => ['required', 'digits:6'],
+        ]);
+
+        $user = auth()->user();
+        $cacheKey = $this->otpCacheKey((int) $user->id);
+        $payload = Cache::get($cacheKey);
+
+        if (!$payload) {
+            return response()->json([
+                'message' => 'OTP session expired. Please start again.',
+            ], 422);
+        }
+
+        if (now()->timestamp > (int) $payload['expires_at']) {
+            Cache::forget($cacheKey);
+
+            return response()->json([
+                'message' => 'OTP expired. Please request a new OTP.',
+            ], 422);
+        }
+
+        $attemptsLeft = (int) ($payload['attempts_left'] ?? 0);
+        if ($attemptsLeft <= 0) {
+            Cache::forget($cacheKey);
+
+            return response()->json([
+                'message' => 'Maximum OTP attempts reached. Please start again.',
+            ], 429);
+        }
+
+        if (!Hash::check((string) $validated['otp'], (string) $payload['otp_hash'])) {
+            $payload['attempts_left'] = $attemptsLeft - 1;
+            $remaining = (int) $payload['attempts_left'];
+
+            if ($remaining <= 0) {
+                Cache::forget($cacheKey);
+
+                return response()->json([
+                    'message' => 'Invalid OTP. Maximum attempts reached.',
+                ], 429);
+            }
+
+            Cache::put($cacheKey, $payload, now()->timestamp >= (int) $payload['expires_at']
+                ? now()
+                : now()->setTimestamp((int) $payload['expires_at']));
+
+            return response()->json([
+                'message' => 'Invalid OTP.',
+                'attempts_remaining' => $remaining,
+            ], 422);
+        }
+
+        $lock = Cache::lock('loan-disbursement-user-' . (int) $user->id, 10);
+
+        if (!$lock->get()) {
+            return response()->json([
+                'message' => 'A loan request is already being processed. Please wait.',
+            ], 429);
+        }
+
+        try {
+            $customer = $user->customer;
+            $account = $user->account;
+
+            if (!$customer || !$account) {
+                return response()->json([
+                    'message' => 'Customer profile or account is missing. Please complete your profile and create an account first.',
+                ], 422);
+            }
+
+            $requestedAmount = round((float) ($payload['requested_amount'] ?? 0), 2);
+            if ($requestedAmount < self::INSTANT_LOAN_MIN_AMOUNT || $requestedAmount > self::INSTANT_LOAN_MAX_AMOUNT) {
+                Cache::forget($cacheKey);
+
+                return response()->json([
+                    'message' => 'Invalid loan amount.',
+                ], 422);
+            }
+
+            if ($this->hasOutstandingLoan((int) $customer->C_ID)) {
+                Cache::forget($cacheKey);
+
+                return response()->json([
+                    'message' => 'You already have an unpaid loan. Repay it before requesting a new loan.',
+                ], 422);
+            }
+
+            DB::transaction(function () use ($customer, $account, $payload, $requestedAmount): void {
+                $approvedLoan = Loan::create([
+                    'C_ID' => (int) $customer->C_ID,
+                    'B_ID' => (int) $payload['branch_id'],
+                    'L_Type' => 'Instant Tk ' . number_format($requestedAmount, 2) . ' Loan',
+                    'L_Amount' => $requestedAmount,
+                    'remaining_amount' => $requestedAmount,
+                    'Interest_Rate' => 0,
+                    'status' => 'active',
+                ]);
+
+                DB::table('accounts')
+                    ->where('A_Number', (int) $account->A_Number)
+                    ->increment('A_Balance', $requestedAmount);
+
+                Transaction::create([
+                    'A_Number' => (int) $account->A_Number,
+                    'C_ID' => (int) $customer->C_ID,
+                    'T_Type' => 'Loan Disbursement',
+                    'T_Amount' => $requestedAmount,
+                    'T_Date' => now(),
+                ]);
+
+                LoanRequest::create([
+                    'C_ID' => (int) $customer->C_ID,
+                    'B_ID' => (int) $payload['branch_id'],
+                    'requested_amount' => $requestedAmount,
+                    'status' => 'accepted',
+                    'decision_note' => 'Approved after password and OTP verification.',
+                    'processed_at' => now(),
+                    'approved_loan_id' => (int) $approvedLoan->L_ID,
+                ]);
+            });
+
+            Cache::forget($cacheKey);
+
+            return response()->json([
+                'message' => 'Loan approved and disbursed successfully.',
             ]);
-        });
+        } catch (\Throwable $e) {
+            Log::error('Loan disbursement failed after OTP verification.', [
+                'user_id' => (int) $user->id,
+                'error' => $e->getMessage(),
+            ]);
 
-        return back()->with('loan_success', 'Loan has been approved and added to your account.');
+            return response()->json([
+                'message' => 'Unable to complete loan disbursement. Please try again.',
+            ], 500);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function take(Request $request): RedirectResponse
+    {
+        return back()->with('loan_error', 'Please use the secured password and OTP flow to request a loan.');
     }
 
     public function repay(Request $request): RedirectResponse
@@ -93,7 +305,7 @@ class LoanController extends Controller
         $account = $user->account;
 
         if (!$customer || !$account) {
-            return back()->with('loan_error', 'Customer profile or account is missing for this user.');
+            return back()->with('loan_error', 'Customer profile or account is missing. Please complete your profile and create an account first.');
         }
 
         $loan = $user->loans()->where('L_ID', $validated['loan_id'])->first();
@@ -167,5 +379,134 @@ class LoanController extends Controller
                 'available_money' => $availableMoney,
             ],
         ];
+    }
+
+    private function processPendingLoanRequests(int $customerId, int $accountNumber): void
+    {
+        $pendingRequests = LoanRequest::query()
+            ->where('C_ID', $customerId)
+            ->where('status', 'processing')
+            ->where('created_at', '<=', now()->subSeconds(self::PROCESSING_DELAY_SECONDS))
+            ->orderBy('created_at')
+            ->get();
+
+        foreach ($pendingRequests as $loanRequest) {
+            DB::transaction(function () use ($loanRequest, $customerId, $accountNumber): void {
+                $hasOutstandingLoan = Loan::query()
+                    ->where('C_ID', $customerId)
+                    ->where(function ($query) {
+                        $query->where('remaining_amount', '>', 0)
+                            ->orWhere(function ($subQuery) {
+                                $subQuery->whereNull('remaining_amount')
+                                    ->where('L_Amount', '>', 0);
+                            });
+                    })
+                    ->exists();
+
+                if ($hasOutstandingLoan) {
+                    $loanRequest->status = 'rejected';
+                    $loanRequest->decision_note = 'Rejected because there is an existing unpaid loan.';
+                    $loanRequest->processed_at = now();
+                    $loanRequest->save();
+
+                    return;
+                }
+
+                $approvedLoan = Loan::create([
+                    'C_ID' => $customerId,
+                    'B_ID' => $loanRequest->B_ID,
+                    'L_Type' => 'Instant Tk ' . number_format((float) $loanRequest->requested_amount, 2) . ' Loan',
+                    'L_Amount' => (float) $loanRequest->requested_amount,
+                    'remaining_amount' => (float) $loanRequest->requested_amount,
+                    'Interest_Rate' => 0,
+                    'status' => 'active',
+                ]);
+
+                DB::table('accounts')
+                    ->where('A_Number', $accountNumber)
+                    ->increment('A_Balance', (float) $loanRequest->requested_amount);
+
+                Transaction::create([
+                    'A_Number' => $accountNumber,
+                    'C_ID' => $customerId,
+                    'T_Type' => 'Loan Disbursement',
+                    'T_Amount' => (float) $loanRequest->requested_amount,
+                    'T_Date' => now(),
+                ]);
+
+                $loanRequest->status = 'accepted';
+                $loanRequest->approved_loan_id = $approvedLoan->L_ID;
+                $loanRequest->decision_note = 'Accepted and disbursed to account.';
+                $loanRequest->processed_at = now();
+                $loanRequest->save();
+            });
+        }
+    }
+
+    private function hasOutstandingLoan(int $customerId): bool
+    {
+        return Loan::query()
+            ->where('C_ID', $customerId)
+            ->where(function ($query) {
+                $query->where('remaining_amount', '>', 0)
+                    ->orWhere(function ($subQuery) {
+                        $subQuery->whereNull('remaining_amount')
+                            ->where('L_Amount', '>', 0);
+                    });
+            })
+            ->exists();
+    }
+
+    private function resolveBranchIdForLoan($user): ?int
+    {
+        $existingBranchId = $user->loans()->value('B_ID');
+
+        if ($existingBranchId) {
+            return (int) $existingBranchId;
+        }
+
+        $branchId = Branch::query()->value('B_ID');
+
+        return $branchId ? (int) $branchId : null;
+    }
+
+    private function otpCacheKey(int $userId): string
+    {
+        return 'loan-otp-user-' . $userId;
+    }
+
+    private function resolveOtpEmail($user): string
+    {
+        $userEmail = trim((string) ($user->email ?? ''));
+        return $userEmail;
+    }
+
+    private function maskEmail(string $email): string
+    {
+        if (!str_contains($email, '@')) {
+            return '***';
+        }
+
+        [$local, $domain] = explode('@', $email, 2);
+        $visible = substr($local, 0, 2);
+        $maskedLocal = $visible . str_repeat('*', max(strlen($local) - 2, 1));
+
+        return $maskedLocal . '@' . $domain;
+    }
+
+    private function sendLoanOtpToEmail(string $email, string $otp, int $userId): void
+    {
+        if ($email === '') {
+            throw new \RuntimeException('No recipient email available for OTP delivery.');
+        }
+
+        Mail::raw('Your loan OTP is ' . $otp . '. It expires in 5 minutes.', function ($message) use ($email): void {
+            $message->to($email)->subject('Loan OTP Verification');
+        });
+
+        Log::info('Loan OTP email dispatched.', [
+            'user_id' => $userId,
+            'email' => $this->maskEmail($email),
+        ]);
     }
 }

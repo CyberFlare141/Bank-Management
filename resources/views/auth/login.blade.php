@@ -32,12 +32,12 @@
                 @csrf
 
                 <div class="field field-email">
-                    <label for="email">Email</label>
+                    <label for="account_number">Account Number</label>
                     <div class="input-shell">
-                        <span class="field-icon" aria-hidden="true">@</span>
-                        <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus autocomplete="username">
+                        <span class="field-icon" aria-hidden="true">#</span>
+                        <input id="account_number" type="number" name="account_number" value="{{ old('account_number') }}" required autofocus>
                     </div>
-                    <x-input-error :messages="$errors->get('email')" class="field-error" />
+                    <x-input-error :messages="$errors->get('account_number')" class="field-error" />
                 </div>
 
                 <div class="field field-password">
@@ -54,10 +54,6 @@
                         <input id="remember_me" type="checkbox" name="remember">
                         <span>Remember me</span>
                     </label>
-
-                    @if (Route::has('password.request'))
-                        <a class="meta-link" href="{{ route('password.request') }}">Forgot password?</a>
-                    @endif
                 </div>
 
                 <button type="submit" class="auth-btn">Log In</button>

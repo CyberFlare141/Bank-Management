@@ -47,6 +47,24 @@
                     <x-input-error :messages="$errors->get('email')" class="field-error" />
                 </div>
 
+                <div class="field field-email">
+                    <label for="phone_number">Phone Number</label>
+                    <div class="input-shell">
+                        <span class="field-icon" aria-hidden="true">#</span>
+                        <input id="phone_number" type="text" name="phone_number" value="{{ old('phone_number') }}" required autocomplete="tel">
+                    </div>
+                    <x-input-error :messages="$errors->get('phone_number')" class="field-error" />
+                </div>
+
+                <div class="field field-email">
+                    <label for="account_number">Account Number</label>
+                    <div class="input-shell">
+                        <span class="field-icon" aria-hidden="true">#</span>
+                        <input id="account_number" type="number" name="account_number" value="{{ old('account_number') }}" required>
+                    </div>
+                    <x-input-error :messages="$errors->get('account_number')" class="field-error" />
+                </div>
+
                 <div class="field field-password">
                     <label for="password">Password</label>
                     <div class="input-shell">
