@@ -448,16 +448,26 @@
 
         .input-shell:focus-within .field-icon { color: #7ec8f7; }
 
-        .input-shell input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            outline: none;
-            color: var(--text);
-            font-size: 0.9rem;
-            font-family: 'DM Sans', sans-serif;
-            padding: 0.7rem 0.9rem;
-        }
+       .input-shell input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: 'DM Sans', sans-serif;
+    padding: 0.7rem 0.9rem;
+}
+
+.input-shell input:-webkit-autofill,
+.input-shell input:-webkit-autofill:hover,
+.input-shell input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #04091400 inset !important;
+    box-shadow: 0 0 0 1000px rgba(4, 9, 20, 0.75) inset !important;
+    -webkit-text-fill-color: #e8f2ff !important;
+    background-color: transparent !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
 
         .input-shell input::placeholder { color: rgba(106,135,170,0.5); }
 
