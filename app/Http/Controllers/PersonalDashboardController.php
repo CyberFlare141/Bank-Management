@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Loan;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class PersonalDashboardController extends Controller
@@ -24,14 +25,10 @@ class PersonalDashboardController extends Controller
             ->limit(10)
             ->get();
 
-        $activeLoans = $user
-            ->loans
-            ->filter(function (Loan $loan): bool {
-                $status = strtolower((string) ($loan->status ?? 'active'));
-
-                return $status === 'active' || $status === 'ongoing' || $status === 'in_progress';
-            })
-            ->values();
+        [$activeLoans, $loanSummary] = $this->buildLoanSummary(
+            $user->loans,
+            (float) ($user->account->A_Balance ?? 0)
+        );
 
         return view('personal.dashboard', [
             'user' => $user,
@@ -39,6 +36,37 @@ class PersonalDashboardController extends Controller
             'creditCard' => $user->creditCard,
             'activeLoans' => $activeLoans,
             'recentTransactions' => $recentTransactions,
+            'loanSummary' => $loanSummary,
         ]);
+    }
+
+    private function buildLoanSummary(Collection $loans, float $accountBalance): array
+    {
+        $totalLoanTaken = (float) $loans->sum(fn (Loan $loan) => (float) $loan->L_Amount);
+        $remainingLoanBalance = (float) $loans->sum(fn (Loan $loan) => (float) ($loan->remaining_amount ?? $loan->L_Amount));
+        $totalRepaid = max($totalLoanTaken - $remainingLoanBalance, 0);
+        $availableMoney = $accountBalance - $remainingLoanBalance;
+
+        $activeLoans = $loans
+            ->filter(function (Loan $loan): bool {
+                $status = strtolower((string) ($loan->status ?? 'active'));
+
+                if (in_array($status, ['active', 'ongoing', 'in_progress'], true)) {
+                    return true;
+                }
+
+                return (float) ($loan->remaining_amount ?? $loan->L_Amount) > 0;
+            })
+            ->values();
+
+        return [
+            $activeLoans,
+            [
+                'total_loan_taken' => $totalLoanTaken,
+                'total_repaid' => $totalRepaid,
+                'remaining_loan_balance' => $remainingLoanBalance,
+                'available_money' => $availableMoney,
+            ],
+        ];
     }
 }
