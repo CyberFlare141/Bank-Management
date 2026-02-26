@@ -16,6 +16,8 @@ Route::get('/dashboard', function () {
 Route::middleware('auth')->group(function () {
     Route::get('/personal', [PersonalDashboardController::class, 'index'])->name('personal.dashboard');
     Route::get('/personal/loan', [LoanController::class, 'index'])->name('personal.loan');
+    Route::post('/personal/loan/request-password', [LoanController::class, 'requestPasswordVerification'])->name('personal.loan.request-password');
+    Route::post('/personal/loan/verify-otp', [LoanController::class, 'verifyOtpAndDisburse'])->name('personal.loan.verify-otp');
     Route::post('/personal/loan/take', [LoanController::class, 'take'])->name('personal.loan.take');
     Route::post('/personal/loan/repay', [LoanController::class, 'repay'])->name('personal.loan.repay');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

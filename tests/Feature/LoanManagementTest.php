@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\Customer;
 use App\Models\Loan;
+use App\Models\LoanRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -14,40 +15,50 @@ class LoanManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_user_can_take_loan_and_balance_is_increased(): void
+    public function test_user_can_create_instant_loan_request_and_it_is_processed_after_delay(): void
     {
         [$user, $customer, $account] = $this->createUserWithBankingProfile(500);
 
         $response = $this
             ->actingAs($user)
             ->from(route('personal.loan'))
-            ->post(route('personal.loan.take'), [
-                'loan_type' => 'Education Loan',
-                'loan_amount' => 1200,
-                'interest_rate' => 5.5,
-            ]);
+            ->post(route('personal.loan.take'));
 
         $response
             ->assertRedirect(route('personal.loan'))
             ->assertSessionHas('loan_success');
 
         $account->refresh();
+        $this->assertSame(500.0, (float) $account->A_Balance);
 
-        $this->assertSame(1700.0, (float) $account->A_Balance);
-
-        $this->assertDatabaseHas('loans', [
+        $this->assertDatabaseHas('loan_requests', [
             'C_ID' => $customer->C_ID,
-            'L_Type' => 'Education Loan',
-            'L_Amount' => '1200.00',
-            'remaining_amount' => '1200.00',
-            'status' => 'active',
+            'requested_amount' => '30000.00',
+            'status' => 'processing',
         ]);
+
+        LoanRequest::query()->update(['created_at' => now()->subSeconds(30)]);
+
+        $this->actingAs($user)->get(route('personal.loan'))->assertOk();
+
+        $account->refresh();
+        $loanRequest = LoanRequest::first();
+
+        $this->assertSame(30500.0, (float) $account->A_Balance);
+        $this->assertSame('accepted', $loanRequest->status);
 
         $this->assertDatabaseHas('transactions', [
             'A_Number' => $account->A_Number,
             'C_ID' => $customer->C_ID,
             'T_Type' => 'Loan Disbursement',
-            'T_Amount' => '1200.00',
+            'T_Amount' => '30000.00',
+        ]);
+
+        $this->assertDatabaseHas('loans', [
+            'C_ID' => $customer->C_ID,
+            'L_Amount' => '30000.00',
+            'remaining_amount' => '30000.00',
+            'status' => 'active',
         ]);
     }
 
@@ -113,6 +124,28 @@ class LoanManagementTest extends TestCase
             'T_Type' => 'Loan Repayment',
             'T_Amount' => '250.00',
         ]);
+    }
+
+    public function test_pending_request_gets_rejected_if_user_has_existing_unpaid_loan(): void
+    {
+        [$user, $customer, $account] = $this->createUserWithBankingProfile(700);
+        $this->createLoanForCustomer($customer->C_ID, 500, 300);
+
+        $this->actingAs($user)
+            ->from(route('personal.loan'))
+            ->post(route('personal.loan.take'))
+            ->assertRedirect(route('personal.loan'));
+
+        LoanRequest::query()->update(['created_at' => now()->subSeconds(30)]);
+
+        $this->actingAs($user)->get(route('personal.loan'))->assertOk();
+
+        $account->refresh();
+        $loanRequest = LoanRequest::first();
+
+        $this->assertSame('rejected', $loanRequest->status);
+        $this->assertSame(700.0, (float) $account->A_Balance);
+        $this->assertDatabaseCount('loans', 1);
     }
 
     public function test_repayment_fails_when_account_balance_is_insufficient(): void

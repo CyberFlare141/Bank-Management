@@ -11,6 +11,7 @@ class Account extends Model
     protected $primaryKey = 'A_Number';
 
     protected $fillable = [
+        'A_Number',
         'C_ID',
         'account_type',
         'A_Balance',

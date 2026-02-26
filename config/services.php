@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'sms' => [
+        'url' => env('SMS_API_URL'),
+        'token' => env('SMS_API_TOKEN'),
+    ],
+
 ];

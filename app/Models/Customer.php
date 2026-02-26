@@ -32,6 +32,11 @@ class Customer extends Model
         return $this->hasMany(Loan::class, 'C_ID');
     }
 
+    public function loanRequests(): HasMany
+    {
+        return $this->hasMany(LoanRequest::class, 'C_ID');
+    }
+
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class, 'C_ID');
