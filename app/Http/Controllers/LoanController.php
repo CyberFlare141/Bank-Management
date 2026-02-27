@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -22,6 +23,8 @@ class LoanController extends Controller
 {
     private const INSTANT_LOAN_MIN_AMOUNT = 5000;
     private const INSTANT_LOAN_MAX_AMOUNT = 30000;
+    private const MONTHLY_INTEREST_ELIGIBLE_MAX_AMOUNT = 30000;
+    private const MONTHLY_INTEREST_RATE = 0.09;
     private const PROCESSING_DELAY_SECONDS = 10;
     private const OTP_EXPIRY_MINUTES = 5;
     private const OTP_MAX_ATTEMPTS = 3;
@@ -40,6 +43,9 @@ class LoanController extends Controller
             'account',
             'loans' => fn ($query) => $query->latest('created_at'),
         ]);
+
+        $this->applyMonthlyInterestForEligibleLoans($user->loans);
+        $user->load('loans');
 
         $loanRequests = $customer
             ? LoanRequest::query()
@@ -314,6 +320,9 @@ class LoanController extends Controller
             return back()->with('loan_error', 'Selected loan was not found for this account.');
         }
 
+        $this->applyMonthlyInterestToLoan($loan);
+        $loan->refresh();
+
         $rawRemaining = (float) ($loan->remaining_amount ?? $loan->L_Amount);
         if ($rawRemaining <= 0) {
             return back()->with('loan_error', 'This loan is already fully paid.');
@@ -466,8 +475,34 @@ class LoanController extends Controller
         }
 
         $branchId = Branch::query()->value('B_ID');
+        if (!$branchId) {
+            $this->ensureDefaultDhakaBranches();
+            $branchId = Branch::query()->value('B_ID');
+        }
 
         return $branchId ? (int) $branchId : null;
+    }
+
+    private function ensureDefaultDhakaBranches(): void
+    {
+        if (Branch::query()->exists()) {
+            return;
+        }
+
+        $branches = [
+            ['B_Name' => 'Dhanmondi Branch', 'B_Location' => 'Dhanmondi, Dhaka', 'IFSC_Code' => 'DHKMARS001'],
+            ['B_Name' => 'Gulshan Branch', 'B_Location' => 'Gulshan, Dhaka', 'IFSC_Code' => 'DHKMARS002'],
+            ['B_Name' => 'Uttara Branch', 'B_Location' => 'Uttara, Dhaka', 'IFSC_Code' => 'DHKMARS003'],
+            ['B_Name' => 'Mirpur Branch', 'B_Location' => 'Mirpur, Dhaka', 'IFSC_Code' => 'DHKMARS004'],
+            ['B_Name' => 'Motijheel Branch', 'B_Location' => 'Motijheel, Dhaka', 'IFSC_Code' => 'DHKMARS005'],
+        ];
+
+        foreach ($branches as $branch) {
+            Branch::query()->firstOrCreate(
+                ['IFSC_Code' => $branch['IFSC_Code']],
+                $branch
+            );
+        }
     }
 
     private function otpCacheKey(int $userId): string
@@ -508,5 +543,62 @@ class LoanController extends Controller
             'user_id' => $userId,
             'email' => $this->maskEmail($email),
         ]);
+    }
+
+    private function applyMonthlyInterestForEligibleLoans(Collection $loans): void
+    {
+        $loans->each(function (Loan $loan): void {
+            $this->applyMonthlyInterestToLoan($loan);
+        });
+    }
+
+    private function applyMonthlyInterestToLoan(Loan $loan): void
+    {
+        $originalAmount = (float) $loan->L_Amount;
+        $remainingAmount = (float) ($loan->remaining_amount ?? $loan->L_Amount);
+        $status = strtolower((string) ($loan->status ?? 'active'));
+
+        if ($originalAmount > self::MONTHLY_INTEREST_ELIGIBLE_MAX_AMOUNT || $remainingAmount <= 0) {
+            return;
+        }
+
+        if (!in_array($status, ['active', 'ongoing', 'in_progress'], true)) {
+            return;
+        }
+
+        DB::transaction(function () use ($loan): void {
+            $freshLoan = Loan::query()
+                ->where('L_ID', $loan->L_ID)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$freshLoan) {
+                return;
+            }
+
+            $freshRemaining = (float) ($freshLoan->remaining_amount ?? $freshLoan->L_Amount);
+            if ($freshRemaining <= 0) {
+                return;
+            }
+
+            $appliedBase = $freshLoan->last_interest_applied_at
+                ? Carbon::parse($freshLoan->last_interest_applied_at)
+                : Carbon::parse($freshLoan->created_at);
+
+            $freshMonthsElapsed = max(0, $appliedBase->diffInMonths(now()));
+            if ($freshMonthsElapsed < 1) {
+                return;
+            }
+
+            $freshNewRemaining = $freshRemaining;
+            for ($i = 0; $i < $freshMonthsElapsed; $i++) {
+                $freshNewRemaining = round($freshNewRemaining * (1 + self::MONTHLY_INTEREST_RATE), 2);
+            }
+
+            $freshLoan->remaining_amount = $freshNewRemaining;
+            $freshLoan->Interest_Rate = 9;
+            $freshLoan->last_interest_applied_at = $appliedBase->copy()->addMonthsNoOverflow($freshMonthsElapsed);
+            $freshLoan->save();
+        });
     }
 }

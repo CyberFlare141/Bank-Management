@@ -858,7 +858,7 @@
                 <div>
                     <div class="mars-hero-badge">Instant Finance</div>
                     <h1>Loan <span>Management</span></h1>
-                    <p class="mars-hero-sub">Request up to Tk {{ number_format((float)$instantLoanMaxAmount, 2) }} instantly. Secured with password + OTP dual verification.</p>
+                    <p class="mars-hero-sub">Request up to Tk {{ number_format((float)$instantLoanMaxAmount, 2) }} instantly with 9% monthly interest rate only. Secured with password + OTP dual verification.</p>
                 </div>
                 <div class="mars-hero-amount">
                     <p class="label">Max Available</p>

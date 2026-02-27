@@ -106,6 +106,18 @@ class User extends Authenticatable implements JWTSubject
         );
     }
 
+    public function cardApplications(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            CardApplication::class,
+            Customer::class,
+            'C_Email',
+            'C_ID',
+            'email',
+            'C_ID'
+        );
+    }
+
     protected function casts(): array
     {
         return [

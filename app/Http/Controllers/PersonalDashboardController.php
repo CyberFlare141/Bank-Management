@@ -16,6 +16,7 @@ class PersonalDashboardController extends Controller
             'account',
             'creditCard',
             'loans' => fn ($query) => $query->latest('created_at'),
+            'cardApplications' => fn ($query) => $query->latest('card_applications.created_at')->limit(5),
         ]);
 
         $recentTransactions = $user
@@ -37,6 +38,7 @@ class PersonalDashboardController extends Controller
             'activeLoans' => $activeLoans,
             'recentTransactions' => $recentTransactions,
             'loanSummary' => $loanSummary,
+            'recentCardApplications' => $user->cardApplications,
         ]);
     }
 
