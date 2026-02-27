@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PersonalDashboardController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\CardController;
+use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -24,6 +25,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/personal/loan/verify-otp', [LoanController::class, 'verifyOtpAndDisburse'])->name('personal.loan.verify-otp');
     Route::post('/personal/loan/take', [LoanController::class, 'take'])->name('personal.loan.take');
     Route::post('/personal/loan/repay', [LoanController::class, 'repay'])->name('personal.loan.repay');
+    Route::post('/personal/quick-actions/transfer', [TransactionController::class, 'transfer'])->name('personal.quick-actions.transfer');
+    Route::post('/personal/quick-actions/pay-bill', [TransactionController::class, 'payBill'])->name('personal.quick-actions.pay-bill');
+    Route::post('/personal/quick-actions/recharge', [TransactionController::class, 'recharge'])->name('personal.quick-actions.recharge');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
