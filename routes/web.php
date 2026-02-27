@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PersonalDashboardController;
 use App\Http\Controllers\LoanController;
+use App\Http\Controllers\CardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -15,6 +16,9 @@ Route::get('/dashboard', function () {
 
 Route::middleware('auth')->group(function () {
     Route::get('/personal', [PersonalDashboardController::class, 'index'])->name('personal.dashboard');
+    Route::get('/personal/cards', [CardController::class, 'index'])->name('personal.cards');
+    Route::get('/personal/cards/apply/{cardType}', [CardController::class, 'create'])->name('personal.cards.create');
+    Route::post('/personal/cards/apply/{cardType}', [CardController::class, 'store'])->name('personal.cards.store');
     Route::get('/personal/loan', [LoanController::class, 'index'])->name('personal.loan');
     Route::post('/personal/loan/request-password', [LoanController::class, 'requestPasswordVerification'])->name('personal.loan.request-password');
     Route::post('/personal/loan/verify-otp', [LoanController::class, 'verifyOtpAndDisburse'])->name('personal.loan.verify-otp');

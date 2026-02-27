@@ -1147,7 +1147,7 @@
         <nav class="main-nav" aria-label="Main navigation">
             <a href="{{ route('personal.dashboard') }}">Personal</a>
             <a href="#business">Business</a>
-            <a href="#cards">Cards</a>
+            <a href="{{ auth()->check() ? route('personal.cards') : route('login') }}">Cards</a>
             <a href="{{ auth()->check() ? route('personal.loan') : route('login') }}">Loans</a>
             <a href="#insights">Insights</a>
         </nav>
@@ -1320,13 +1320,13 @@
                         <div class="product-icon icon-green">💰</div>
                         <h3>Smart Savings</h3>
                         <p>High-yield savings with adaptive interest rates and instant liquidity controls. Grow your wealth automatically.</p>
-                        <a href="#" class="product-link">Explore <span class="product-link-arrow">→</span></a>
+                        <a href="{{ auth()->check() ? route('personal.cards.create', ['cardType' => 'debit']) : route('login') }}" class="product-link">Explore <span class="product-link-arrow">→</span></a>
                     </article>
                     <article class="product-card featured reveal reveal-delay-2">
                         <div class="product-icon icon-gold">💳</div>
                         <h3>Credit Elite</h3>
                         <p>Premium card program with cashback rewards, travel benefits, and advanced security controls.</p>
-                        <a href="#" class="product-link">Explore <span class="product-link-arrow">→</span></a>
+                        <a href="{{ auth()->check() ? route('personal.cards.create', ['cardType' => 'credit']) : route('login') }}" class="product-link">Explore <span class="product-link-arrow">→</span></a>
                     </article>
                     <article id="loans" class="product-card reveal reveal-delay-3">
                         <div class="product-icon icon-blue">🏠</div>

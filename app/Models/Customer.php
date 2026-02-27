@@ -46,4 +46,9 @@ class Customer extends Model
     {
         return $this->hasOne(CreditCard::class, 'C_ID');
     }
+
+    public function cardApplications(): HasMany
+    {
+        return $this->hasMany(CardApplication::class, 'C_ID');
+    }
 }

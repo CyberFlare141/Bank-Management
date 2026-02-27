@@ -501,6 +501,7 @@
                     <a href="{{ route('home') }}" class="mars-nav-link">Home</a>
                     <a href="{{ route('profile.edit') }}" class="mars-nav-link">Profile</a>
                     <a href="{{ route('personal.dashboard') }}" class="mars-nav-link">Personal</a>
+                    <a href="{{ route('personal.cards') }}" class="mars-nav-link">Cards</a>
                 </div>
                 <div class="mars-nav-right">
                     <div class="mars-notif" aria-label="Notifications">
@@ -612,12 +613,12 @@
                     </div>
                     <div class="mars-action-label">Statements</div>
                 </div>
-                <div class="mars-action">
+                <a href="{{ route('personal.cards') }}" class="mars-action" style="text-decoration:none;">
                     <div class="mars-action-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path></svg>
                     </div>
-                    <div class="mars-action-label">Account</div>
-                </div>
+                    <div class="mars-action-label">Cards</div>
+                </a>
                 <div class="mars-action">
                     <div class="mars-action-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.7-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.7 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2H9a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .7.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1V9c0 .4.2.8.6.9H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.4.1"></path></svg>
@@ -676,6 +677,7 @@
                 <div class="mars-card d2">
                     <div class="mars-sec-hdr">
                         <div class="mars-sec-title"><span class="mars-title-pip pip-cyan"></span>Credit Card</div>
+                        <a href="{{ route('personal.cards') }}" class="mars-link-btn">Cards →</a>
                     </div>
                     @if(!$creditCard)
                         <div class="mars-empty"><span class="mars-empty-icon">💳</span>No credit card found.</div>
@@ -712,6 +714,29 @@
                                 </div>
                             </div>
                         @endif
+                    @endif
+                </div>
+
+                <div class="mars-card d4">
+                    <div class="mars-sec-hdr">
+                        <div class="mars-sec-title"><span class="mars-title-pip pip-blue"></span>Card Applications</div>
+                        <a href="{{ route('personal.cards') }}" class="mars-link-btn">Manage →</a>
+                    </div>
+                    @if($recentCardApplications->isEmpty())
+                        <div class="mars-empty"><span class="mars-empty-icon">💳</span>No card applications found.</div>
+                    @else
+                        <div class="mars-loan-list">
+                            @foreach($recentCardApplications as $application)
+                                <div class="mars-loan-item">
+                                    <div class="ml-row">
+                                        <span class="ml-id">{{ $application->application_id }}</span>
+                                        <span class="mars-badge badge-neutral">{{ str_replace('_', ' ', ucfirst($application->status)) }}</span>
+                                    </div>
+                                    <div class="ml-row"><span class="ml-key">Card Type</span><span class="ml-val">{{ ucfirst($application->card_category) }} / {{ $application->card_network }}</span></div>
+                                    <div class="ml-row"><span class="ml-key">Submitted</span><span class="ml-val">{{ $application->created_at?->format('M d, Y h:i A') }}</span></div>
+                                </div>
+                            @endforeach
+                        </div>
                     @endif
                 </div>
 
