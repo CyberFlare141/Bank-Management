@@ -40,4 +40,8 @@ return [
         'token' => env('SMS_API_TOKEN'),
     ],
 
+    'quick_actions' => [
+        'require_2fa' => env('QUICK_ACTIONS_REQUIRE_2FA', false),
+    ],
+
 ];

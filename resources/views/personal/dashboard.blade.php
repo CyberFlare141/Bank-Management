@@ -8,6 +8,15 @@
         $creditAvailable = (float) ($creditCard->available_credit ?? 0);
         $creditLimit = (float) ($creditCard->credit_limit ?? 0);
         $lastLogin = optional($user->updated_at)->format('F d, Y \a\t h:i A') ?? now()->format('F d, Y \a\t h:i A');
+        $quickActionReceipt = session('quick_action_receipt');
+        $billTypes = [
+            'electricity' => 'Electricity',
+            'water' => 'Water',
+            'education' => 'Education',
+            'utility' => 'Utility',
+            'government' => 'Government',
+        ];
+        $rechargeApps = ['Bkash', 'Rocket', 'GPay'];
     @endphp
 
     <style>
@@ -32,6 +41,7 @@
         }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        [x-cloak] { display: none !important; }
 
         .mars-root {
             font-family: var(--font);
@@ -301,6 +311,178 @@
         .mars-action-icon svg { width: 20px; height: 20px; }
         .mars-action-label { font-size: 0.73rem; font-weight: 600; color: var(--muted); text-align: center; transition: color 0.2s; }
         .mars-action:hover .mars-action-label { color: var(--text); }
+        .mars-action-btn {
+            font: inherit;
+            width: 100%;
+            color: inherit;
+            text-align: inherit;
+            border: none;
+        }
+
+        .mars-flash {
+            margin-bottom: 1rem;
+            padding: 0.85rem 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-size: 0.78rem;
+            font-family: var(--mono);
+        }
+        .mars-flash-success {
+            color: var(--green);
+            border-color: rgba(16, 185, 129, 0.3);
+            background: rgba(16, 185, 129, 0.08);
+        }
+        .mars-flash-error {
+            color: var(--rose);
+            border-color: rgba(244, 63, 94, 0.3);
+            background: rgba(244, 63, 94, 0.08);
+        }
+        .mars-receipt {
+            margin-bottom: 1.25rem;
+            padding: 1rem;
+            border-radius: 14px;
+            border: 1px solid var(--border-hi);
+            background: rgba(14, 29, 51, 0.8);
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        .mars-receipt-item {
+            padding: 0.7rem;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: rgba(6, 10, 20, 0.55);
+        }
+        .mars-receipt-k { font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); }
+        .mars-receipt-v { margin-top: 0.3rem; font-size: 0.82rem; color: var(--text); font-family: var(--mono); font-weight: 600; word-break: break-word; }
+        @media (max-width: 900px) {
+            .mars-receipt {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        @media (max-width: 500px) {
+            .mars-receipt {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .mars-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(3, 8, 15, 0.72);
+            z-index: 60;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            backdrop-filter: blur(2px);
+        }
+        .mars-modal {
+            width: min(540px, 100%);
+            border-radius: 18px;
+            border: 1px solid var(--border-hi);
+            background: linear-gradient(160deg, #0e1829 0%, #091423 100%);
+            box-shadow: 0 35px 90px rgba(0, 0, 0, 0.7);
+            padding: 1.2rem;
+        }
+        .mars-modal-hdr {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.95rem;
+        }
+        .mars-modal-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .mars-modal-sub {
+            margin-top: 0.2rem;
+            font-size: 0.72rem;
+            color: var(--muted);
+            font-family: var(--mono);
+        }
+        .mars-close-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--card);
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .mars-close-btn:hover { color: var(--text); border-color: var(--border-hi); }
+        .mars-form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .mars-field {
+            margin-bottom: 0.75rem;
+        }
+        .mars-field label {
+            display: block;
+            margin-bottom: 0.35rem;
+            font-size: 0.68rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            font-family: var(--mono);
+        }
+        .mars-field input,
+        .mars-field select,
+        .mars-field textarea {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: rgba(5, 11, 22, 0.85);
+            color: var(--text);
+            padding: 0.62rem 0.7rem;
+            font-size: 0.78rem;
+            font-family: var(--mono);
+        }
+        .mars-field textarea { resize: vertical; min-height: 70px; }
+        .mars-field input:focus,
+        .mars-field select:focus,
+        .mars-field textarea:focus {
+            outline: none;
+            border-color: var(--border-hi);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
+        }
+        .mars-modal-actions {
+            margin-top: 0.7rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.55rem;
+        }
+        .mars-btn {
+            border: 1px solid var(--border);
+            padding: 0.58rem 0.9rem;
+            border-radius: 9px;
+            cursor: pointer;
+            font-size: 0.74rem;
+            font-family: var(--mono);
+            font-weight: 600;
+        }
+        .mars-btn-subtle {
+            background: rgba(6, 12, 23, 0.75);
+            color: var(--muted);
+        }
+        .mars-btn-primary {
+            border-color: rgba(59,130,246,0.35);
+            background: rgba(59,130,246,0.12);
+            color: var(--accent2);
+        }
+        .mars-btn-primary:hover {
+            border-color: rgba(59,130,246,0.55);
+            background: rgba(59,130,246,0.2);
+        }
+        @media (max-width: 640px) {
+            .mars-form-row {
+                grid-template-columns: 1fr;
+            }
+        }
 
         /* ═══ SECTION GRID ═══ */
         .mars-grid-layout {
@@ -480,7 +662,7 @@
         }
     </style>
 
-    <div class="mars-root">
+    <div class="mars-root" x-data="{ quickActionModal: '' }">
         <div class="mars-bg">
             <div class="mars-blob b1"></div>
             <div class="mars-blob b2"></div>
@@ -589,24 +771,24 @@
 
             {{-- QUICK ACTIONS --}}
             <div class="mars-actions-row">
-                <div class="mars-action">
+                <button type="button" class="mars-action mars-action-btn" @click="quickActionModal = 'transfer'" title="Transfer to internal bank account or external wallet">
                     <div class="mars-action-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h10v10"></path><path d="m7 17 10-10"></path></svg>
                     </div>
                     <div class="mars-action-label">Fund Transfer</div>
-                </div>
-                <div class="mars-action">
+                </button>
+                <button type="button" class="mars-action mars-action-btn" @click="quickActionModal = 'bill'" title="Pay electricity, water, education, utility, or government bills">
                     <div class="mars-action-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h14v16H5z"></path><path d="M8 8h8M8 12h8M8 16h5"></path></svg>
                     </div>
                     <div class="mars-action-label">Pay Bill</div>
-                </div>
-                <div class="mars-action">
+                </button>
+                <button type="button" class="mars-action mars-action-btn" @click="quickActionModal = 'recharge'" title="Mobile top-up or wallet recharge up to Tk 50,000">
                     <div class="mars-action-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="3" width="12" height="18" rx="2"></rect><path d="M12 8v8M8 12h8"></path></svg>
                     </div>
                     <div class="mars-action-label">Recharge</div>
-                </div>
+                </button>
                 <div class="mars-action">
                     <div class="mars-action-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l3 3v15H6z"></path><path d="M9 13h6M9 17h4M9 9h6"></path></svg>
@@ -624,6 +806,153 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.7-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.7 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2H9a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .7.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1V9c0 .4.2.8.6.9H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.4.1"></path></svg>
                     </div>
                     <div class="mars-action-label">Settings</div>
+                </div>
+            </div>
+
+            @if(session('quick_action_success'))
+                <div class="mars-flash mars-flash-success">{{ session('quick_action_success') }}</div>
+            @endif
+            @if(session('quick_action_error'))
+                <div class="mars-flash mars-flash-error">{{ session('quick_action_error') }}</div>
+            @endif
+            @if($quickActionReceipt)
+                <div class="mars-receipt">
+                    <div class="mars-receipt-item">
+                        <div class="mars-receipt-k">Receipt</div>
+                        <div class="mars-receipt-v">{{ $quickActionReceipt['title'] ?? 'Quick Action' }}</div>
+                    </div>
+                    <div class="mars-receipt-item">
+                        <div class="mars-receipt-k">Reference</div>
+                        <div class="mars-receipt-v">{{ $quickActionReceipt['reference'] ?? '-' }}</div>
+                    </div>
+                    <div class="mars-receipt-item">
+                        <div class="mars-receipt-k">Amount</div>
+                        <div class="mars-receipt-v">Tk {{ number_format((float) ($quickActionReceipt['amount'] ?? 0), 2) }}</div>
+                    </div>
+                    <div class="mars-receipt-item">
+                        <div class="mars-receipt-k">Balance After</div>
+                        <div class="mars-receipt-v">Tk {{ number_format((float) ($quickActionReceipt['balance'] ?? 0), 2) }}</div>
+                    </div>
+                </div>
+            @endif
+
+            {{-- QUICK ACTION MODALS --}}
+            <div class="mars-modal-backdrop" x-cloak x-show="quickActionModal === 'transfer'" @click.self="quickActionModal = ''" @keydown.escape.window="quickActionModal = ''">
+                <div class="mars-modal">
+                    <div class="mars-modal-hdr">
+                        <div>
+                            <div class="mars-modal-title">Fund Transfer</div>
+                            <div class="mars-modal-sub">Send to an internal account or external wallet ID.</div>
+                        </div>
+                        <button type="button" class="mars-close-btn" @click="quickActionModal = ''">x</button>
+                    </div>
+                    <form method="POST" action="{{ route('personal.quick-actions.transfer') }}">
+                        @csrf
+                        <div class="mars-field">
+                            <label for="recipient_identifier">Recipient Account / Wallet ID</label>
+                            <input id="recipient_identifier" name="recipient_identifier" type="text" value="{{ old('recipient_identifier') }}" placeholder="Account no or wallet ID" required>
+                        </div>
+                        <div class="mars-form-row">
+                            <div class="mars-field">
+                                <label for="transfer_amount">Amount (Tk)</label>
+                                <input id="transfer_amount" name="amount" type="number" min="0.01" step="0.01" value="{{ old('amount') }}" required>
+                            </div>
+                            <div class="mars-field">
+                                <label for="transfer_note">Note (Optional)</label>
+                                <input id="transfer_note" name="note" type="text" maxlength="255" value="{{ old('note') }}" placeholder="Purpose or remarks">
+                            </div>
+                        </div>
+                        <div class="mars-field">
+                            <label for="transfer_password">Password</label>
+                            <input id="transfer_password" name="quick_action_password" type="password" autocomplete="current-password" required>
+                        </div>
+                        <div class="mars-modal-actions">
+                            <button type="button" class="mars-btn mars-btn-subtle" @click="quickActionModal = ''">Cancel</button>
+                            <button type="submit" class="mars-btn mars-btn-primary">Confirm Transfer</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="mars-modal-backdrop" x-cloak x-show="quickActionModal === 'bill'" @click.self="quickActionModal = ''" @keydown.escape.window="quickActionModal = ''">
+                <div class="mars-modal">
+                    <div class="mars-modal-hdr">
+                        <div>
+                            <div class="mars-modal-title">Pay Bill</div>
+                            <div class="mars-modal-sub">Recurring and one-time payments with instant confirmation.</div>
+                        </div>
+                        <button type="button" class="mars-close-btn" @click="quickActionModal = ''">x</button>
+                    </div>
+                    <form method="POST" action="{{ route('personal.quick-actions.pay-bill') }}">
+                        @csrf
+                        <div class="mars-form-row">
+                            <div class="mars-field">
+                                <label for="bill_type">Bill Type</label>
+                                <select id="bill_type" name="bill_type" required>
+                                    @foreach($billTypes as $billValue => $billLabel)
+                                        <option value="{{ $billValue }}" @selected(old('bill_type') === $billValue)>{{ $billLabel }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="mars-field">
+                                <label for="bill_number">Customer/Account Number</label>
+                                <input id="bill_number" name="bill_number" type="text" value="{{ old('bill_number') }}" maxlength="80" placeholder="Provider reference number" required>
+                            </div>
+                        </div>
+                        <div class="mars-field">
+                            <label for="bill_amount">Amount (Tk)</label>
+                            <input id="bill_amount" name="amount" type="number" min="0.01" step="0.01" value="{{ old('amount') }}" required>
+                        </div>
+                        <div class="mars-field">
+                            <label for="bill_password">Password</label>
+                            <input id="bill_password" name="quick_action_password" type="password" autocomplete="current-password" required>
+                        </div>
+                        <div class="mars-modal-actions">
+                            <button type="button" class="mars-btn mars-btn-subtle" @click="quickActionModal = ''">Cancel</button>
+                            <button type="submit" class="mars-btn mars-btn-primary">Confirm Payment</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="mars-modal-backdrop" x-cloak x-show="quickActionModal === 'recharge'" @click.self="quickActionModal = ''" @keydown.escape.window="quickActionModal = ''">
+                <div class="mars-modal">
+                    <div class="mars-modal-hdr">
+                        <div>
+                            <div class="mars-modal-title">Recharge</div>
+                            <div class="mars-modal-sub">Mobile and wallet top-up. Max per transaction: Tk 50,000.</div>
+                        </div>
+                        <button type="button" class="mars-close-btn" @click="quickActionModal = ''">x</button>
+                    </div>
+                    <form method="POST" action="{{ route('personal.quick-actions.recharge') }}">
+                        @csrf
+                        <div class="mars-form-row">
+                            <div class="mars-field">
+                                <label for="recharge_app">Provider</label>
+                                <select id="recharge_app" name="recharge_app" required>
+                                    @foreach($rechargeApps as $appName)
+                                        <option value="{{ $appName }}" @selected(old('recharge_app') === $appName)>{{ $appName }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="mars-field">
+                                <label for="recharge_recipient">Phone / Wallet ID</label>
+                                <input id="recharge_recipient" name="recipient" type="text" value="{{ old('recipient') }}" maxlength="80" placeholder="01XXXXXXXXX or wallet ID" required>
+                            </div>
+                        </div>
+                        <div class="mars-field">
+                            <label for="recharge_amount">Amount (Tk)</label>
+                            <input id="recharge_amount" name="amount" type="number" min="1" max="50000" step="0.01" value="{{ old('amount') }}" required>
+                        </div>
+                        <div class="mars-field">
+                            <label for="recharge_password">Password</label>
+                            <input id="recharge_password" name="quick_action_password" type="password" autocomplete="current-password" required>
+                        </div>
+                        <div class="mars-modal-actions">
+                            <button type="button" class="mars-btn mars-btn-subtle" @click="quickActionModal = ''">Cancel</button>
+                            <button type="submit" class="mars-btn mars-btn-primary">Confirm Recharge</button>
+                        </div>
+                    </form>
                 </div>
             </div>
 
@@ -751,6 +1080,11 @@
                     @else
                         <div class="mars-tx-list">
                             @foreach($recentTransactions as $tx)
+                                @php
+                                    $txType = strtolower((string) $tx->T_Type);
+                                    $isCredit = str_contains($txType, 'received') || str_contains($txType, 'loan disbursement');
+                                    $amountPrefix = $isCredit ? '+' : '-';
+                                @endphp
                                 <div class="mars-tx-item">
                                     <div class="mars-tx-left">
                                         <div class="mars-tx-icon">
@@ -762,7 +1096,7 @@
                                         </div>
                                     </div>
                                     <div class="mars-tx-right">
-                                        <div class="mars-tx-amt">+${{ number_format((float) $tx->T_Amount, 2) }}</div>
+                                        <div class="mars-tx-amt">{{ $amountPrefix }}${{ number_format((float) $tx->T_Amount, 2) }}</div>
                                         <div class="mars-tx-date">{{ optional($tx->T_Date)->format('M d, Y') ?? $tx->created_at?->format('M d, Y') }}</div>
                                     </div>
                                 </div>
