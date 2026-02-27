@@ -475,8 +475,34 @@ class LoanController extends Controller
         }
 
         $branchId = Branch::query()->value('B_ID');
+        if (!$branchId) {
+            $this->ensureDefaultDhakaBranches();
+            $branchId = Branch::query()->value('B_ID');
+        }
 
         return $branchId ? (int) $branchId : null;
+    }
+
+    private function ensureDefaultDhakaBranches(): void
+    {
+        if (Branch::query()->exists()) {
+            return;
+        }
+
+        $branches = [
+            ['B_Name' => 'Dhanmondi Branch', 'B_Location' => 'Dhanmondi, Dhaka', 'IFSC_Code' => 'DHKMARS001'],
+            ['B_Name' => 'Gulshan Branch', 'B_Location' => 'Gulshan, Dhaka', 'IFSC_Code' => 'DHKMARS002'],
+            ['B_Name' => 'Uttara Branch', 'B_Location' => 'Uttara, Dhaka', 'IFSC_Code' => 'DHKMARS003'],
+            ['B_Name' => 'Mirpur Branch', 'B_Location' => 'Mirpur, Dhaka', 'IFSC_Code' => 'DHKMARS004'],
+            ['B_Name' => 'Motijheel Branch', 'B_Location' => 'Motijheel, Dhaka', 'IFSC_Code' => 'DHKMARS005'],
+        ];
+
+        foreach ($branches as $branch) {
+            Branch::query()->firstOrCreate(
+                ['IFSC_Code' => $branch['IFSC_Code']],
+                $branch
+            );
+        }
     }
 
     private function otpCacheKey(int $userId): string

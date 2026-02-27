@@ -45,7 +45,7 @@ class LoginRequest extends FormRequest
                 $validator->errors()->add('email', 'Email or phone number is required.');
                 $validator->errors()->add('phone_number', 'Email or phone number is required.');
             }
-        ];
+        });
     }
 
     /**

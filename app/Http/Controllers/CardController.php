@@ -38,6 +38,7 @@ class CardController extends Controller
         $customer = $user->customer;
         $account = $user->account;
 
+        $this->ensureDefaultDhakaBranches();
         $branches = Branch::query()->orderBy('B_Name')->get();
 
         return view('personal.cards.apply', [
@@ -67,14 +68,13 @@ class CardController extends Controller
             'full_name' => ['required', 'string', 'max:255'],
             'date_of_birth' => ['required', 'date', 'before:today'],
             'national_id_passport' => ['required', 'string', 'max:60'],
-            'contact_number' => ['required', 'regex:/^[0-9]{8,20}$/'],
+            'contact_number' => ['required', 'regex:/^\+?[0-9\s\-()]{8,25}$/'],
             'email_address' => ['required', 'email', 'max:255'],
             'residential_address' => ['required', 'string', 'max:1000'],
 
             'existing_account_number' => [
                 'nullable',
                 'integer',
-                Rule::exists('accounts', 'A_Number'),
             ],
             'account_type' => ['required', 'string', 'max:100'],
             'branch_id' => ['required', 'integer', Rule::exists('branches', 'B_ID')],
@@ -88,15 +88,14 @@ class CardController extends Controller
             'monthly_income' => [$cardType === 'credit' ? 'required' : 'nullable', 'numeric', 'min:0'],
             'source_of_income' => [$cardType === 'credit' ? 'required' : 'nullable', 'string', 'max:255'],
         ], [
-            'contact_number.regex' => 'Contact number must contain only digits (8 to 20 characters).',
+            'contact_number.regex' => 'Contact number format is invalid.',
         ]);
 
-        if ($account && !empty($validated['existing_account_number'])) {
-            if ((int) $validated['existing_account_number'] !== (int) $account->A_Number) {
-                return back()
-                    ->withInput()
-                    ->withErrors(['existing_account_number' => 'The selected account does not belong to your profile.']);
-            }
+        $this->ensureDefaultDhakaBranches();
+
+        $existingAccountNumber = null;
+        if ($account && !empty($validated['existing_account_number']) && (int) $validated['existing_account_number'] === (int) $account->A_Number) {
+            $existingAccountNumber = (int) $validated['existing_account_number'];
         }
 
         $branch = Branch::query()->findOrFail((int) $validated['branch_id']);
@@ -116,7 +115,7 @@ class CardController extends Controller
             'contact_number' => $validated['contact_number'],
             'email_address' => $validated['email_address'],
             'residential_address' => $validated['residential_address'],
-            'existing_account_number' => $validated['existing_account_number'] ?? null,
+            'existing_account_number' => $existingAccountNumber,
             'account_type' => $validated['account_type'],
             'branch_name' => $branch->B_Name,
             'occupation' => $validated['occupation'] ?? null,
@@ -145,5 +144,27 @@ class CardController extends Controller
         } while (CardApplication::query()->where('application_id', $reference)->exists());
 
         return $reference;
+    }
+
+    private function ensureDefaultDhakaBranches(): void
+    {
+        if (Branch::query()->exists()) {
+            return;
+        }
+
+        $branches = [
+            ['B_Name' => 'Dhanmondi Branch', 'B_Location' => 'Dhanmondi, Dhaka', 'IFSC_Code' => 'DHKMARS001'],
+            ['B_Name' => 'Gulshan Branch', 'B_Location' => 'Gulshan, Dhaka', 'IFSC_Code' => 'DHKMARS002'],
+            ['B_Name' => 'Uttara Branch', 'B_Location' => 'Uttara, Dhaka', 'IFSC_Code' => 'DHKMARS003'],
+            ['B_Name' => 'Mirpur Branch', 'B_Location' => 'Mirpur, Dhaka', 'IFSC_Code' => 'DHKMARS004'],
+            ['B_Name' => 'Motijheel Branch', 'B_Location' => 'Motijheel, Dhaka', 'IFSC_Code' => 'DHKMARS005'],
+        ];
+
+        foreach ($branches as $branch) {
+            Branch::query()->firstOrCreate(
+                ['IFSC_Code' => $branch['IFSC_Code']],
+                $branch
+            );
+        }
     }
 }
