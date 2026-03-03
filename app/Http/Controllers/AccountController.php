@@ -2,66 +2,28 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
+use App\Services\AccountService;
+use Illuminate\Http\JsonResponse;
 
-class AuthController extends Controller
+class AccountController extends Controller
 {
-    // REGISTER
-    public function register(Request $request)
+    public function __construct(private readonly AccountService $accountService)
     {
-        $request->validate([
-            'name' => 'required|string',
-            'email' => 'required|string|email|unique:users',
-            'password' => 'required|string|min:6',
-        ]);
-
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
-
-        $token = Auth::guard('api')->login($user);
-
-        return response()->json([
-            'user' => $user,
-            'token' => $token
-        ]);
     }
 
-    // LOGIN
-    public function login(Request $request)
+    public function profile(): JsonResponse
     {
-        $credentials = $request->only('email', 'password');
+        $user = auth()->user();
+        $context = $this->accountService->getUserBankingContext((string) $user->email);
 
-        if (!$token = Auth::guard('api')->attempt($credentials)) {
+        if (!$context) {
             return response()->json([
-                'error' => 'Invalid credentials'
-            ], 401);
+                'message' => 'Customer profile or account is missing.',
+            ], 404);
         }
 
         return response()->json([
-            'token' => $token
+            'data' => $context,
         ]);
-    }
-
-    // LOGOUT
-    public function logout()
-    {
-        Auth::guard('api')->logout();
-
-        return response()->json([
-            'message' => 'Successfully logged out'
-        ]);
-    }
-
-    // PROFILE
-    public function profile()
-    {
-        return response()->json(Auth::guard('api')->user());
     }
 }
-
