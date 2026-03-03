@@ -1047,8 +1047,8 @@
                                                 {{ ucfirst($st) }}
                                             </span>
                                         </td>
-                                        <td>{{ $loanRequest->created_at?->format('M d, Y · h:i A') }}</td>
-                                        <td>{{ $loanRequest->processed_at?->format('M d, Y · h:i A') ?? '—' }}</td>
+                                        <td>{{ !empty($loanRequest->created_at) ? \Illuminate\Support\Carbon::parse($loanRequest->created_at)->format('M d, Y · h:i A') : '—' }}</td>
+                                        <td>{{ !empty($loanRequest->processed_at) ? \Illuminate\Support\Carbon::parse($loanRequest->processed_at)->format('M d, Y · h:i A') : '—' }}</td>
                                         <td style="color:var(--muted)">{{ $loanRequest->decision_note ?? '—' }}</td>
                                     </tr>
                                 @endforeach
