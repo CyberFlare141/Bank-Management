@@ -1171,6 +1171,7 @@
             <a href="{{ auth()->check() ? route('personal.cards') : route('login') }}">Cards</a>
             <a href="{{ auth()->check() ? route('personal.loan') : route('login') }}">Loans</a>
             <a href="#insights">Insights</a>
+            <a href="{{ route('about') }}">About Us</a>
         </nav>
 
         <nav class="auth-nav" aria-label="Auth">
@@ -1650,5 +1651,4 @@ document.addEventListener('mousemove', (e) => {
 </script>
 </body>
 </html>
-
 

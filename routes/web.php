@@ -5,12 +5,17 @@ use App\Http\Controllers\PersonalDashboardController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 })->name('home');
+
+Route::get('/about', function () {
+    return view('about');
+})->name('about');
 
 Route::get('/dashboard', function () {
     if (auth()->user()?->isAdminUser()) {
@@ -23,6 +28,11 @@ Route::get('/dashboard', function () {
 Route::middleware('guest')->group(function () {
     Route::get('/admin/login', [AdminController::class, 'showLogin'])->name('admin.login');
     Route::post('/admin/login', [AdminController::class, 'login'])->name('admin.login.submit');
+});
+
+Route::middleware('auth')->group(function () {
+    Route::get('/contact', [ContactController::class, 'create'])->name('contact.create');
+    Route::post('/contact', [ContactController::class, 'store'])->name('contact.store');
 });
 
 Route::middleware(['auth', 'non_admin'])->group(function () {
