@@ -49,6 +49,9 @@
                     <x-nav-link :href="route('personal.cards')" :active="request()->routeIs('personal.cards*')">
                         {{ __('Cards') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('about')" :active="request()->routeIs('about')">
+                        {{ __('About Us') }}
+                    </x-nav-link>
                     @if (Auth::user()?->isAdminUser())
                         <x-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.*')">
                             {{ __('Admin') }}
@@ -161,6 +164,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('personal.cards')" :active="request()->routeIs('personal.cards*')">
                 {{ __('Cards') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('about')" :active="request()->routeIs('about')">
+                {{ __('About Us') }}
             </x-responsive-nav-link>
             @if (Auth::user()?->isAdminUser())
                 <x-responsive-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.*')">
