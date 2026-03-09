@@ -25,6 +25,7 @@ class User extends Authenticatable implements JWTSubject
         'name',
         'email',
         'password',
+        'is_admin',
     ];
 
     /**
@@ -118,11 +119,19 @@ class User extends Authenticatable implements JWTSubject
         );
     }
 
+    public function isAdminUser(): bool
+    {
+        $adminEmail = trim((string) env('ADMIN_EMAIL', ''));
+
+        return (bool) $this->is_admin || ($adminEmail !== '' && strcasecmp((string) $this->email, $adminEmail) === 0);
+    }
+
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_admin' => 'boolean',
         ];
     }
 }

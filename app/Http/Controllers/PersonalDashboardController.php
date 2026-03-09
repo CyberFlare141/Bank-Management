@@ -31,6 +31,12 @@ class PersonalDashboardController extends Controller
             (float) ($user->account->A_Balance ?? 0)
         );
 
+        $applicationNotifications = $user->unreadNotifications()
+            ->latest()
+            ->limit(5)
+            ->get();
+        $applicationNotifications->markAsRead();
+
         return view('personal.dashboard', [
             'user' => $user,
             'account' => $user->account,
@@ -39,6 +45,7 @@ class PersonalDashboardController extends Controller
             'recentTransactions' => $recentTransactions,
             'loanSummary' => $loanSummary,
             'recentCardApplications' => $user->cardApplications,
+            'applicationNotifications' => $applicationNotifications,
         ]);
     }
 

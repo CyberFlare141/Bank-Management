@@ -24,9 +24,16 @@ class CardController extends Controller
             ? $this->accountService->getCardApplications((int) $context->C_ID)
             : [];
 
+        $applicationNotifications = $user->unreadNotifications()
+            ->latest()
+            ->limit(5)
+            ->get();
+        $applicationNotifications->markAsRead();
+
         return view('personal.cards.index', [
             'applications' => collect($applications),
             'hasBankingProfile' => (bool) $context,
+            'applicationNotifications' => $applicationNotifications,
         ]);
     }
 

@@ -682,7 +682,7 @@
                     <span class="mars-nav-link active">Dashboard</span>
                     <a href="{{ route('home') }}" class="mars-nav-link">Home</a>
                     <a href="{{ route('profile.edit') }}" class="mars-nav-link">Profile</a>
-                    <a href="{{ route('personal.dashboard') }}" class="mars-nav-link">Personal</a>
+                    <a href="{{ route('personal.dashboard') }}" class="mars-nav-link">Personal Dashboard</a>
                     <a href="{{ route('personal.cards') }}" class="mars-nav-link">Cards</a>
                 </div>
                 <div class="mars-nav-right">
@@ -691,7 +691,9 @@
                             <path d="M14.5 18a2.5 2.5 0 0 1-5 0"></path>
                             <path d="M18 16V11a6 6 0 1 0-12 0v5l-2 2h16l-2-2z"></path>
                         </svg>
-                        <div class="mars-notif-dot"></div>
+                        @if($applicationNotifications->isNotEmpty())
+                            <div class="mars-notif-dot"></div>
+                        @endif
                     </div>
                     <div class="mars-avatar" title="{{ $user->name }}">{{ strtoupper(substr($user->name, 0, 1)) }}</div>
                 </div>
@@ -814,6 +816,13 @@
             @endif
             @if(session('quick_action_error'))
                 <div class="mars-flash mars-flash-error">{{ session('quick_action_error') }}</div>
+            @endif
+            @if($applicationNotifications->isNotEmpty())
+                @foreach($applicationNotifications as $notification)
+                    <div class="mars-flash mars-flash-success">
+                        {{ $notification->data['title'] ?? 'Application Update' }}: {{ $notification->data['message'] ?? 'Your application status has been updated.' }}
+                    </div>
+                @endforeach
             @endif
             @if($quickActionReceipt)
                 <div class="mars-receipt">
