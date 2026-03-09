@@ -1,3 +1,27 @@
+@php
+    $quickLinkLabel = 'Home';
+    $quickLinkHref = route('home');
+
+    if (request()->routeIs('personal.dashboard')) {
+        $quickLinkLabel = 'Loans';
+        $quickLinkHref = route('personal.loan');
+    } elseif (request()->routeIs('personal.loan')) {
+        $quickLinkLabel = 'Cards';
+        $quickLinkHref = route('personal.cards');
+    } elseif (request()->routeIs('personal.cards*')) {
+        $quickLinkLabel = 'Personal';
+        $quickLinkHref = route('personal.dashboard');
+    } elseif (request()->routeIs('profile.*')) {
+        $quickLinkLabel = 'Dashboard';
+        $quickLinkHref = route('personal.dashboard');
+    } elseif (request()->routeIs('admin.*')) {
+        $quickLinkLabel = 'Personal';
+        $quickLinkHref = route('personal.dashboard');
+    }
+
+    $fallbackBackUrl = request()->routeIs('admin.*') ? route('admin.dashboard') : route('dashboard');
+@endphp
+
 <nav x-data="{ open: false }" class="bg-blue-700 shadow-lg">
 
     <!-- Primary Navigation Menu -->
@@ -17,7 +41,7 @@
                         {{ __('Dashboard') }}
                     </x-nav-link>
                     <x-nav-link :href="route('personal.dashboard')" :active="request()->routeIs('personal.dashboard')">
-                        {{ __('Personal') }}
+                        {{ __('Personal Dashboard') }}
                     </x-nav-link>
                     <x-nav-link :href="route('personal.loan')" :active="request()->routeIs('personal.loan')">
                         {{ __('Loans') }}
@@ -25,15 +49,51 @@
                     <x-nav-link :href="route('personal.cards')" :active="request()->routeIs('personal.cards*')">
                         {{ __('Cards') }}
                     </x-nav-link>
+                    @if (Auth::user()?->isAdminUser())
+                        <x-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.*')">
+                            {{ __('Admin') }}
+                        </x-nav-link>
+                    @endif
                 </div>
             </div>
 
             <!-- Settings Dropdown -->
             <div class="hidden sm:flex sm:items-center sm:ms-6">
+                <button
+                    type="button"
+                    onclick="window.history.length > 1 ? window.history.back() : window.location.assign('{{ $fallbackBackUrl }}')"
+                    class="inline-flex items-center gap-2 me-3 px-3 py-2 rounded-md border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-100 transition"
+                >
+                    <span aria-hidden="true">←</span>
+                    <span>Back</span>
+                </button>
+
+                <a href="{{ $quickLinkHref }}" class="inline-flex items-center gap-2 me-3 px-3 py-2 rounded-md border border-sky-300 bg-sky-100 text-sky-800 text-sm font-semibold hover:bg-sky-200 transition">
+                    <span>{{ $quickLinkLabel }}</span>
+                </a>
+
+                @if (Auth::user()?->isAdminUser())
+                    <a href="{{ route('admin.dashboard') }}" class="inline-flex items-center gap-2 me-3 px-3 py-2 rounded-md border border-amber-300 bg-amber-100 text-amber-800 text-sm font-semibold hover:bg-amber-200 transition">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 5-3.2 8.7-7 10-3.8-1.3-7-5-7-10V6l7-3z" />
+                        </svg>
+                        <span>Admin Dashboard</span>
+                    </a>
+                @endif
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">
                         <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none transition ease-in-out duration-150">
-                            <div>{{ Auth::user()->name }}</div>
+                            <div class="flex items-center gap-2">
+                                <span>{{ Auth::user()->name }}</span>
+                                @if (Auth::user()?->isAdminUser())
+                                    <span class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                        <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 5-3.2 8.7-7 10-3.8-1.3-7-5-7-10V6l7-3z" />
+                                        </svg>
+                                        <span>Admin</span>
+                                    </span>
+                                @endif
+                            </div>
 
                             <div class="ms-1">
                                 <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
@@ -44,6 +104,12 @@
                     </x-slot>
 
                     <x-slot name="content">
+                        @if (Auth::user()?->isAdminUser())
+                            <x-dropdown-link :href="route('admin.dashboard')">
+                                {{ __('Admin Dashboard') }}
+                            </x-dropdown-link>
+                        @endif
+
                         <x-dropdown-link :href="route('profile.edit')">
                             {{ __('Profile') }}
                         </x-dropdown-link>
@@ -75,13 +141,20 @@
     </div>
 
     <!-- Responsive Navigation Menu -->
-    <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
+        <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
+            <button
+                type="button"
+                onclick="window.history.length > 1 ? window.history.back() : window.location.assign('{{ $fallbackBackUrl }}')"
+                class="w-full text-left px-4 py-2 text-sm text-slate-100 hover:bg-blue-600 transition"
+            >
+                ← Back
+            </button>
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('personal.dashboard')" :active="request()->routeIs('personal.dashboard')">
-                {{ __('Personal') }}
+                {{ __('Personal Dashboard') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('personal.loan')" :active="request()->routeIs('personal.loan')">
                 {{ __('Loans') }}
@@ -89,16 +162,40 @@
             <x-responsive-nav-link :href="route('personal.cards')" :active="request()->routeIs('personal.cards*')">
                 {{ __('Cards') }}
             </x-responsive-nav-link>
+            @if (Auth::user()?->isAdminUser())
+                <x-responsive-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.*')">
+                    {{ __('Admin') }}
+                </x-responsive-nav-link>
+            @endif
+            <x-responsive-nav-link :href="$quickLinkHref" :active="false">
+                {{ $quickLinkLabel }}
+            </x-responsive-nav-link>
         </div>
 
         <!-- Responsive Settings Options -->
         <div class="pt-4 pb-1 border-t border-gray-200 dark:border-gray-600">
             <div class="px-4">
-                <div class="font-medium text-base text-gray-800 dark:text-gray-200">{{ Auth::user()->name }}</div>
+                <div class="font-medium text-base text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                    <span>{{ Auth::user()->name }}</span>
+                    @if (Auth::user()?->isAdminUser())
+                        <span class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 5-3.2 8.7-7 10-3.8-1.3-7-5-7-10V6l7-3z" />
+                            </svg>
+                            <span>Admin</span>
+                        </span>
+                    @endif
+                </div>
                 <div class="font-medium text-sm text-gray-500">{{ Auth::user()->email }}</div>
             </div>
 
             <div class="mt-3 space-y-1">
+                @if (Auth::user()?->isAdminUser())
+                    <x-responsive-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.*')">
+                        {{ __('Admin Dashboard') }}
+                    </x-responsive-nav-link>
+                @endif
+
                 <x-responsive-nav-link :href="route('profile.edit')">
                     {{ __('Profile') }}
                 </x-responsive-nav-link>

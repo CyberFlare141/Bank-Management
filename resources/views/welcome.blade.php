@@ -180,6 +180,19 @@
             box-shadow: 0 10px 28px rgba(196,147,74,0.5);
         }
 
+        .btn-admin-top {
+            background: linear-gradient(135deg, #9a6f2a, var(--gold-b));
+            color: #1b1204;
+            border: 1px solid rgba(240,185,106,0.5);
+            font-weight: 800;
+            box-shadow: 0 5px 20px rgba(196,147,74,0.35);
+        }
+
+        .btn-admin-top:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(196,147,74,0.5);
+        }
+
         .btn-lg {
             padding: 0.8rem 1.8rem;
             font-size: 0.95rem;
@@ -223,6 +236,14 @@
         .dropdown-link:hover { background: rgba(80,160,240,0.1); color: var(--text); }
         .logout-link { color: var(--danger); }
         .logout-link:hover { background: rgba(248,113,113,0.08); color: var(--danger); }
+
+        .gold-name {
+            background: linear-gradient(135deg, #f3cf88, #c4934a 70%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+            text-shadow: 0 0 16px rgba(196,147,74,0.3);
+        }
 
         /* ── HERO ── */
         .hero-section {
@@ -1145,7 +1166,7 @@
         </a>
 
         <nav class="main-nav" aria-label="Main navigation">
-            <a href="{{ route('personal.dashboard') }}">Personal</a>
+            <a href="{{ auth()->check() ? route('personal.dashboard') : route('login') }}">Personal Dashboard</a>
             <a href="#business">Business</a>
             <a href="{{ auth()->check() ? route('personal.cards') : route('login') }}">Cards</a>
             <a href="{{ auth()->check() ? route('personal.loan') : route('login') }}">Loans</a>
@@ -1154,13 +1175,21 @@
 
         <nav class="auth-nav" aria-label="Auth">
             @auth
+                @if (Auth::user()?->isAdminUser())
+                    <a href="{{ route('admin.dashboard') }}" class="btn btn-admin-top">Admin Dashboard</a>
+                @endif
                 <details class="profile-menu">
-                    <summary class="btn btn-secondary profile-trigger">{{ Auth::user()->name }} ▾</summary>
+                    <summary class="btn btn-secondary profile-trigger">
+                        <span class="{{ Auth::user()?->isAdminUser() ? 'gold-name' : '' }}">{{ Auth::user()->name }}</span> ▾
+                    </summary>
                     <div class="profile-dropdown">
-                        <a href="{{ route('profile.edit') }}" class="dropdown-link">⚙ Profile</a>
+                        @if (Auth::user()?->isAdminUser())
+                            <a href="{{ route('admin.dashboard') }}" class="dropdown-link">Admin Dashboard</a>
+                        @endif
+                        <a href="{{ route('profile.edit') }}" class="dropdown-link">Profile</a>
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-                            <button type="submit" class="dropdown-link logout-link">↩ Logout</button>
+                            <button type="submit" class="dropdown-link logout-link">Logout</button>
                         </form>
                     </div>
                 </details>
@@ -1621,3 +1650,5 @@ document.addEventListener('mousemove', (e) => {
 </script>
 </body>
 </html>
+
+

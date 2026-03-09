@@ -62,6 +62,15 @@
                 <div class="cards-alert err">{{ session('card_error') }}</div>
             @endif
 
+            @if (!empty($applicationNotifications) && $applicationNotifications->isNotEmpty())
+                @foreach ($applicationNotifications as $notification)
+                    <div class="cards-alert ok">
+                        {{ $notification->data['title'] ?? 'Application Update' }}:
+                        {{ $notification->data['message'] ?? 'Your application status has changed.' }}
+                    </div>
+                @endforeach
+            @endif
+
             @if (!$hasBankingProfile)
                 <div class="cards-alert err">Your customer profile/account is incomplete. Complete profile setup before applying.</div>
             @endif
@@ -102,7 +111,9 @@
                                     <td style="color:#58a6ff;font-weight:700">{{ $application->application_id }}</td>
                                     <td>{{ ucfirst($application->card_category) }}</td>
                                     <td>{{ $application->card_network }}</td>
-                                    <td>{{ $application->created_at?->format('M d, Y h:i A') }}</td>
+                                    <td>
+                                        {{ !empty($application->created_at) ? \Illuminate\Support\Carbon::parse($application->created_at)->format('M d, Y h:i A') : '-' }}
+                                    </td>
                                     <td><span class="cards-pill">{{ str_replace('_', ' ', $application->status) }}</span></td>
                                 </tr>
                             @endforeach

@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PersonalDashboardController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\CardController;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 
@@ -12,10 +13,19 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('/dashboard', function () {
+    if (auth()->user()?->isAdminUser()) {
+        return redirect()->route('admin.dashboard');
+    }
+
     return redirect()->route('personal.dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-Route::middleware('auth')->group(function () {
+Route::middleware('guest')->group(function () {
+    Route::get('/admin/login', [AdminController::class, 'showLogin'])->name('admin.login');
+    Route::post('/admin/login', [AdminController::class, 'login'])->name('admin.login.submit');
+});
+
+Route::middleware(['auth', 'non_admin'])->group(function () {
     Route::get('/personal', [PersonalDashboardController::class, 'index'])->name('personal.dashboard');
     Route::get('/personal/cards', [CardController::class, 'index'])->name('personal.cards');
     Route::get('/personal/cards/apply/{cardType}', [CardController::class, 'create'])->name('personal.cards.create');
@@ -31,6 +41,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/admin', [AdminController::class, 'dashboard'])->name('admin.dashboard');
+    Route::post('/admin/logout', [AdminController::class, 'logout'])->name('admin.logout');
+    Route::post('/admin/loan-requests/{loanRequest}/accept', [AdminController::class, 'acceptLoanRequest'])->name('admin.loans.accept');
+    Route::post('/admin/loan-requests/{loanRequest}/reject', [AdminController::class, 'rejectLoanRequest'])->name('admin.loans.reject');
+    Route::post('/admin/card-applications/{cardApplication}/accept', [AdminController::class, 'acceptCardApplication'])->name('admin.cards.accept');
+    Route::post('/admin/card-applications/{cardApplication}/reject', [AdminController::class, 'rejectCardApplication'])->name('admin.cards.reject');
 });
 
 require __DIR__.'/auth.php';
