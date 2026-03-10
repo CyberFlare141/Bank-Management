@@ -474,7 +474,9 @@
         <div class="bg-glow-2"></div>
 
         <div class="profile-wrap">
-            @php($profileUnreadNotifications = auth()->user()->unreadNotifications()->count())
+            @php
+                $profileUnreadNotifications = auth()->user()->unreadNotifications()->count();
+            @endphp
             <div class="profile-topbar">
                 <div class="profile-topbar-right">
                     <button type="button" onclick="history.back()" class="profile-nav-btn profile-back-btn">Back</button>

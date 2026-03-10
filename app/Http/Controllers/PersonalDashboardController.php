@@ -35,7 +35,6 @@ class PersonalDashboardController extends Controller
             ->latest()
             ->limit(5)
             ->get();
-        $applicationNotifications->markAsRead();
 
         return view('personal.dashboard', [
             'user' => $user,

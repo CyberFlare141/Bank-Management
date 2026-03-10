@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Notifications\BankingNotification;
 use App\Services\AccountService;
 use App\Services\TransactionService;
 use Illuminate\Http\RedirectResponse;
@@ -71,6 +72,8 @@ class TransactionController extends Controller
             return $this->quickActionFail('Transfer failed. Please try again.');
         }
 
+        $this->notifyQuickActionSuccess($user, $result);
+
         return $this->quickActionSuccess('Fund transfer completed successfully.', $result);
     }
 
@@ -111,6 +114,8 @@ class TransactionController extends Controller
             ]);
             return $this->quickActionFail('Bill payment failed. Please try again.');
         }
+
+        $this->notifyQuickActionSuccess($user, $result);
 
         return $this->quickActionSuccess('Bill payment completed successfully.', $result);
     }
@@ -153,7 +158,29 @@ class TransactionController extends Controller
             return $this->quickActionFail('Recharge failed. Please try again.');
         }
 
+        $this->notifyQuickActionSuccess($user, $result);
+
         return $this->quickActionSuccess('Recharge completed successfully.', $result);
+    }
+
+    private function notifyQuickActionSuccess(object $user, array $receipt): void
+    {
+        $reference = (string) ($receipt['reference'] ?? '');
+        $amount = (float) ($receipt['amount'] ?? 0);
+        $meta = trim((string) ($receipt['meta'] ?? ''));
+
+        $message = $meta !== ''
+            ? $meta . ' — Tk ' . number_format($amount, 2) . ($reference !== '' ? ' (Ref: ' . $reference . ')' : '')
+            : ('Tk ' . number_format($amount, 2) . ($reference !== '' ? ' (Ref: ' . $reference . ')' : ''));
+
+        $title = trim((string) ($receipt['title'] ?? 'Transaction Update'));
+
+        $user->notify(new BankingNotification(
+            $title !== '' ? $title : 'Transaction Update',
+            $message,
+            'info',
+            'personal.dashboard'
+        ));
     }
 
     private function quickActionSuccess(string $message, array $receipt): RedirectResponse

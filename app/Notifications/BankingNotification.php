@@ -5,15 +5,15 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
-class ApplicationStatusNotification extends Notification
+class BankingNotification extends Notification
 {
     use Queueable;
 
     public function __construct(
         private readonly string $title,
         private readonly string $message,
-        private readonly string $targetRoute,
-        private readonly string $type = 'info'
+        private readonly string $type = 'info',
+        private readonly ?string $targetRoute = null
     ) {
     }
 
@@ -32,3 +32,4 @@ class ApplicationStatusNotification extends Notification
         ];
     }
 }
+
