@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Notifications\BankingNotification;
 use App\Services\AccountService;
 use App\Services\LoanService;
 use Illuminate\Http\JsonResponse;
@@ -216,6 +217,13 @@ class LoanController extends Controller
                 (float) $payload['requested_amount']
             );
 
+            $user->notify(new BankingNotification(
+                'Loan Disbursed',
+                'Your instant loan of Tk ' . number_format((float) $payload['requested_amount'], 2) . ' has been disbursed to your account.',
+                'info',
+                'personal.loan'
+            ));
+
             Cache::forget($cacheKey);
             return response()->json(['message' => 'Loan approved and disbursed successfully.']);
         } catch (ValidationException $e) {
@@ -274,6 +282,13 @@ class LoanController extends Controller
         $message = $result['requested_repayment'] > $result['applied_repayment']
             ? 'Repayment processed. Extra amount was not charged because the loan is now fully paid.'
             : 'Repayment processed successfully.';
+
+        $user->notify(new BankingNotification(
+            'Loan Repayment Successful',
+            'Tk ' . number_format((float) $result['applied_repayment'], 2) . ' was applied to your loan repayment.',
+            'info',
+            'personal.loan'
+        ));
 
         return back()->with('loan_success', $message);
     }

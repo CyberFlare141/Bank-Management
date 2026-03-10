@@ -38,6 +38,9 @@
                     <x-nav-link :href="route('profile.edit')" :active="request()->routeIs('profile.*')">
                         {{ __('Profile') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('notifications.index')" :active="request()->routeIs('notifications.*')">
+                        {{ __('Notifications') }}
+                    </x-nav-link>
                     @if (Auth::user()?->isAdminUser())
                         <x-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.*')">
                             {{ __('Admin Dashboard') }}
@@ -48,7 +51,9 @@
 
             <!-- Settings Dropdown -->
             <div class="hidden sm:flex sm:items-center sm:ms-6">
-                @php($layoutUnreadNotifications = Auth::user()->unreadNotifications()->count())
+                @php
+                    $layoutUnreadNotifications = Auth::user()->unreadNotifications()->count();
+                @endphp
                 <button
                     type="button"
                     onclick="window.history.length > 1 ? window.history.back() : window.location.assign('{{ $fallbackBackUrl }}')"
@@ -59,7 +64,7 @@
                 </button>
 
                 <a
-                    href="{{ route('personal.dashboard') }}"
+                    href="{{ route('notifications.index') }}"
                     class="relative inline-flex items-center justify-center me-3 h-10 w-10 rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition"
                     aria-label="Notifications{{ $layoutUnreadNotifications > 0 ? ' (' . $layoutUnreadNotifications . ' unread)' : '' }}"
                     title="Notifications"
@@ -69,7 +74,9 @@
                         <path d="M18 16V11a6 6 0 1 0-12 0v5l-2 2h16l-2-2z"></path>
                     </svg>
                     @if ($layoutUnreadNotifications > 0)
-                        <span class="absolute right-2 top-2 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+                        <span class="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white ring-2 ring-white">
+                            {{ min($layoutUnreadNotifications, 99) }}
+                        </span>
                     @endif
                 </a>
 
@@ -163,6 +170,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('profile.edit')" :active="request()->routeIs('profile.*')">
                 {{ __('Profile') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('notifications.index')" :active="request()->routeIs('notifications.*')">
+                {{ __('Notifications') }}
             </x-responsive-nav-link>
             @if (Auth::user()?->isAdminUser())
                 <x-responsive-nav-link :href="route('admin.dashboard')" :active="request()->routeIs('admin.*')">

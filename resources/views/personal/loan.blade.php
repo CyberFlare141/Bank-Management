@@ -895,7 +895,7 @@
                 <div class="mars-topbar-right">
                     <button type="button" onclick="history.back()" class="mars-back-btn">Back</button>
                     <a
-                        href="{{ route('personal.dashboard') }}"
+                        href="{{ route('notifications.index') }}"
                         class="mars-notif"
                         aria-label="Notifications{{ $loanUnreadNotifications > 0 ? ' (' . $loanUnreadNotifications . ' unread)' : '' }}"
                         title="Notifications"
@@ -1383,5 +1383,4 @@
     })();
     </script>
 </x-app-layout>
-
 

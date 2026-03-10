@@ -706,15 +706,18 @@
                 </div>
                 <div class="mars-nav-right">
                     <button type="button" class="mars-nav-link" onclick="window.history.length > 1 ? window.history.back() : window.location.assign('{{ route('home') }}')">Back</button>
-                    <div class="mars-notif" aria-label="Notifications">
+                    @php
+                        $dashboardUnreadNotifications = auth()->user()->unreadNotifications()->count();
+                    @endphp
+                    <a href="{{ route('notifications.index') }}" class="mars-notif" aria-label="Notifications{{ $dashboardUnreadNotifications > 0 ? ' (' . $dashboardUnreadNotifications . ' unread)' : '' }}" title="Notifications">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
                             <path d="M14.5 18a2.5 2.5 0 0 1-5 0"></path>
                             <path d="M18 16V11a6 6 0 1 0-12 0v5l-2 2h16l-2-2z"></path>
                         </svg>
-                        @if($applicationNotifications->isNotEmpty())
+                        @if($dashboardUnreadNotifications > 0)
                             <div class="mars-notif-dot"></div>
                         @endif
-                    </div>
+                    </a>
                     <details class="mars-profile-menu">
                         <summary class="mars-profile-trigger">{{ $user->name }} ▾</summary>
                         <div class="mars-profile-dropdown">
@@ -1025,14 +1028,16 @@
                         <div class="mars-empty"><span class="mars-empty-icon">🔒</span>No active loans.</div>
                     @else
                         <div class="mars-loan-list">
-                            @foreach($activeLoans as $loan)
-                                @php $rem = (float)($loan->remaining_amount ?? $loan->L_Amount); @endphp
+                            @foreach ($activeLoans as $loan)
+                                @php
+                                    $rem = (float) ($loan->remaining_amount ?? $loan->L_Amount);
+                                @endphp
                                 <div class="mars-loan-item">
                                     <div class="ml-row">
                                         <span class="ml-id">Loan #{{ $loan->L_ID }}</span>
                                         <span class="mars-badge {{ $rem > 0 ? 'badge-active' : 'badge-closed' }}">{{ $rem > 0 ? 'Active' : 'Closed' }}</span>
                                     </div>
-                                    <div class="ml-row"><span class="ml-key">Amount</span><span class="ml-val">${{ number_format((float)$loan->L_Amount, 2) }}</span></div>
+                                    <div class="ml-row"><span class="ml-key">Amount</span><span class="ml-val">${{ number_format((float) $loan->L_Amount, 2) }}</span></div>
                                     <div class="ml-row"><span class="ml-key">Remaining</span><span class="ml-val" style="color:var(--gold)">${{ number_format($rem, 2) }}</span></div>
                                 </div>
                             @endforeach
@@ -1070,7 +1075,9 @@
                             </div>
                         </div>
                         @if($creditLimit > 0)
-                            @php $usedPct = min(100, round((($creditLimit - $creditAvailable) / $creditLimit) * 100)); @endphp
+                            @php
+                                $usedPct = min(100, round((($creditLimit - $creditAvailable) / $creditLimit) * 100));
+                            @endphp
                             <div class="mars-bar-wrap">
                                 <div class="mars-bar">
                                     <div class="mars-bar-fill" style="width:{{ $usedPct }}%"></div>

@@ -359,7 +359,9 @@
     <div class="page-grid"></div>
 
     <div class="site">
-        @php($contactUnreadNotifications = auth()->user()->unreadNotifications()->count())
+        @php
+            $contactUnreadNotifications = auth()->user()->unreadNotifications()->count();
+        @endphp
         <header class="topbar">
             <a href="{{ route('home') }}" class="brand" aria-label="MARS home">
                 <span class="brand-mark">M</span>
@@ -389,7 +391,7 @@
                 </button>
                 <div class="profile-actions">
                     <a
-                        href="{{ route('personal.dashboard') }}"
+                        href="{{ route('notifications.index') }}"
                         class="btn btn-secondary notif-btn"
                         aria-label="Notifications{{ $contactUnreadNotifications > 0 ? ' (' . $contactUnreadNotifications . ' unread)' : '' }}"
                         title="Notifications"

@@ -28,7 +28,6 @@ class CardController extends Controller
             ->latest()
             ->limit(5)
             ->get();
-        $applicationNotifications->markAsRead();
 
         return view('personal.cards.index', [
             'applications' => collect($applications),

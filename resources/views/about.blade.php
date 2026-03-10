@@ -467,7 +467,7 @@
                 @auth
                     <div class="profile-actions">
                         <a
-                            href="{{ route('personal.dashboard') }}"
+                            href="{{ route('notifications.index') }}"
                             class="btn btn-secondary notif-btn"
                             aria-label="Notifications{{ $aboutUnreadNotifications > 0 ? ' (' . $aboutUnreadNotifications . ' unread)' : '' }}"
                             title="Notifications"

@@ -324,7 +324,9 @@
         <div class="bg-glow-2"></div>
 
         <div class="admin-wrap">
-            @php($adminUnreadNotifications = auth()->user()->unreadNotifications()->count())
+            @php
+                $adminUnreadNotifications = auth()->user()->unreadNotifications()->count();
+            @endphp
             <div class="admin-topbar">
                 <div class="admin-nav">
                     <a href="{{ route('home') }}" class="admin-nav-btn">Home</a>
