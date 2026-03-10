@@ -16,6 +16,16 @@
     </head>
     <body class="font-sans text-gray-900 antialiased">
         <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100 dark:bg-gray-900">
+            <div class="w-full max-w-md px-6">
+                <button
+                    type="button"
+                    onclick="window.history.length > 1 ? window.history.back() : window.location.assign('{{ route('home') }}')"
+                    class="mb-4 inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                    <span aria-hidden="true">←</span>
+                    <span>Back</span>
+                </button>
+            </div>
             <div>
                 <a href="/">
                     <x-application-logo class="w-20 h-20 fill-current text-gray-500" />

@@ -127,6 +127,38 @@
             background: transparent;
             cursor: pointer;
         }
+        .profile-topbar-right { display: flex; align-items: center; gap: 10px; }
+        .profile-notif {
+            position: relative;
+            width: 40px; height: 40px;
+            border-radius: 10px; border: 1px solid #1e2d45;
+            background: rgba(15, 22, 35, 0.65);
+            color: #cbd5e0; display: inline-flex;
+            align-items: center; justify-content: center;
+            text-decoration: none;
+        }
+        .profile-notif-dot {
+            position: absolute; top: 8px; right: 8px;
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #22c55e; border: 2px solid #0f1623;
+        }
+        .profile-user-menu { position: relative; list-style: none; }
+        .profile-user-menu summary { list-style: none; cursor: pointer; }
+        .profile-user-menu summary::-webkit-details-marker { display: none; }
+        .profile-user-dropdown {
+            position: absolute; top: calc(100% + 8px); right: 0;
+            min-width: 180px; padding: 6px;
+            border-radius: 12px; border: 1px solid #1e2d45;
+            background: rgba(15, 22, 35, 0.96); box-shadow: 0 16px 40px rgba(0,0,0,0.35);
+        }
+        .profile-user-link {
+            display: block; width: 100%; padding: 10px 12px;
+            border: none; border-radius: 8px; background: none;
+            color: #cbd5e0; text-align: left; text-decoration: none;
+            cursor: pointer; font: inherit;
+        }
+        .profile-user-link:hover { background: rgba(56, 189, 248, 0.08); color: #f1f5f9; }
+        .profile-user-link.logout { color: #fca5a5; }
 
         .page-title {
             font-size: 30px;
@@ -442,13 +474,38 @@
         <div class="bg-glow-2"></div>
 
         <div class="profile-wrap">
+            @php($profileUnreadNotifications = auth()->user()->unreadNotifications()->count())
             <div class="profile-topbar">
-                <div class="profile-nav">
-                    <a href="{{ route('home') }}" class="profile-nav-btn">Home</a>
-                    <a href="{{ route('personal.dashboard') }}" class="profile-nav-btn primary">Personal Dashboard</a>
-                    <a href="{{ route('profile.edit') }}" class="profile-nav-btn">Profile</a>
+                <div class="profile-topbar-right">
+                    <button type="button" onclick="history.back()" class="profile-nav-btn profile-back-btn">Back</button>
+                    <a
+                        href="{{ route('personal.dashboard') }}"
+                        class="profile-notif"
+                        aria-label="Notifications{{ $profileUnreadNotifications > 0 ? ' (' . $profileUnreadNotifications . ' unread)' : '' }}"
+                        title="Notifications"
+                    >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18" aria-hidden="true">
+                            <path d="M14.5 18a2.5 2.5 0 0 1-5 0"></path>
+                            <path d="M18 16V11a6 6 0 1 0-12 0v5l-2 2h16l-2-2z"></path>
+                        </svg>
+                        @if ($profileUnreadNotifications > 0)
+                            <span class="profile-notif-dot" aria-hidden="true"></span>
+                        @endif
+                    </a>
+                    <details class="profile-user-menu">
+                        <summary class="profile-nav-btn">{{ auth()->user()->name }} ▾</summary>
+                        <div class="profile-user-dropdown">
+                            @if (Auth::user()?->isAdminUser())
+                                <a href="{{ route('admin.dashboard') }}" class="profile-user-link">Admin Dashboard</a>
+                            @endif
+                            <a href="{{ route('profile.edit') }}" class="profile-user-link">Manage Profile</a>
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit" class="profile-user-link logout">Logout</button>
+                            </form>
+                        </div>
+                    </details>
                 </div>
-                <button type="button" onclick="history.back()" class="profile-nav-btn profile-back-btn">Back</button>
             </div>
 
             <p class="page-eyebrow">Account Management</p>

@@ -139,6 +139,55 @@
         }
 
         .auth-nav { display: flex; align-items: center; gap: 0.6rem; }
+        .profile-actions { display: flex; align-items: center; gap: 0.6rem; }
+        .notif-btn {
+            position: relative;
+            width: 42px;
+            height: 42px;
+            padding: 0;
+            border-radius: 12px;
+        }
+        .notif-btn svg { width: 18px; height: 18px; }
+        .notif-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--success);
+            box-shadow: 0 0 0 2px rgba(5, 9, 15, 0.95);
+        }
+        .profile-menu { position: relative; list-style: none; }
+        .profile-menu summary { cursor: pointer; list-style: none; }
+        .profile-menu summary::-webkit-details-marker { display: none; }
+        .profile-dropdown {
+            position: absolute;
+            top: calc(100% + 0.5rem);
+            right: 0;
+            min-width: 170px;
+            background: rgba(9,18,36,0.98);
+            border: 1px solid var(--border-h);
+            border-radius: 12px;
+            padding: 0.4rem;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+        }
+        .dropdown-link {
+            display: block;
+            width: 100%;
+            padding: 0.55rem 0.75rem;
+            border: none;
+            border-radius: 8px;
+            background: none;
+            color: var(--muted);
+            text-align: left;
+            text-decoration: none;
+            cursor: pointer;
+            font: inherit;
+        }
+        .dropdown-link:hover { background: rgba(80,160,240,0.1); color: var(--text); }
+        .logout-link { color: #f87171; }
 
         .btn {
             display: inline-flex;
@@ -383,6 +432,9 @@
     <div class="page-grid"></div>
 
     <div class="site">
+        @php
+            $aboutUnreadNotifications = auth()->check() ? auth()->user()->unreadNotifications()->count() : 0;
+        @endphp
         <header class="topbar">
             <a href="{{ route('home') }}" class="brand" aria-label="MARS home">
                 <span class="brand-mark">M</span>
@@ -391,15 +443,59 @@
 
             <nav class="main-nav" aria-label="Main navigation">
                 <a href="{{ route('home') }}">Home</a>
+                <a href="{{ auth()->check() ? route('personal.dashboard') : route('login') }}">Personal Dashboard</a>
+                <a href="{{ auth()->check() ? route('personal.cards') : route('login') }}">Cards</a>
+                <a href="{{ auth()->check() ? route('personal.loan') : route('login') }}">Loans</a>
                 <a href="{{ route('about') }}">About Us</a>
-                <a href="#mission">Mission</a>
-                <a href="#team">Team</a>
+                <a href="{{ auth()->check() ? route('contact.create') : route('login') }}">Contact</a>
+                <a href="{{ auth()->check() ? route('profile.edit') : route('login') }}">Profile</a>
+                @auth
+                    @if (Auth::user()?->isAdminUser())
+                        <a href="{{ route('admin.dashboard') }}">Admin Dashboard</a>
+                    @endif
+                @endauth
             </nav>
 
             <nav class="auth-nav" aria-label="Auth">
+                <button
+                    type="button"
+                    onclick="window.history.length > 1 ? window.history.back() : window.location.assign('{{ route('home') }}')"
+                    class="btn btn-secondary"
+                >
+                    ← Back
+                </button>
                 @auth
-                    <a href="{{ route('dashboard') }}" class="btn btn-secondary">Dashboard</a>
-                    <a href="{{ route('contact.create') }}" class="btn btn-primary">Contact Us</a>
+                    <div class="profile-actions">
+                        <a
+                            href="{{ route('personal.dashboard') }}"
+                            class="btn btn-secondary notif-btn"
+                            aria-label="Notifications{{ $aboutUnreadNotifications > 0 ? ' (' . $aboutUnreadNotifications . ' unread)' : '' }}"
+                            title="Notifications"
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M14.5 18a2.5 2.5 0 0 1-5 0"></path>
+                                <path d="M18 16V11a6 6 0 1 0-12 0v5l-2 2h16l-2-2z"></path>
+                            </svg>
+                            @if ($aboutUnreadNotifications > 0)
+                                <span class="notif-badge" aria-hidden="true"></span>
+                            @endif
+                        </a>
+                        <details class="profile-menu">
+                            <summary class="btn btn-secondary">
+                                {{ Auth::user()->name }} ▾
+                            </summary>
+                            <div class="profile-dropdown">
+                                @if (Auth::user()?->isAdminUser())
+                                    <a href="{{ route('admin.dashboard') }}" class="dropdown-link">Admin Dashboard</a>
+                                @endif
+                                <a href="{{ route('profile.edit') }}" class="dropdown-link">Manage Profile</a>
+                                <form method="POST" action="{{ route('logout') }}">
+                                    @csrf
+                                    <button type="submit" class="dropdown-link logout-link">Logout</button>
+                                </form>
+                            </div>
+                        </details>
+                    </div>
                 @else
                     <a href="{{ route('login') }}" class="btn btn-secondary">Login</a>
                     <a href="{{ route('register') }}" class="btn btn-primary">Register</a>

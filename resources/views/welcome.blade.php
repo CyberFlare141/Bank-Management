@@ -128,6 +128,30 @@
         }
 
         .auth-nav { display: flex; align-items: center; gap: 0.6rem; }
+        .profile-actions { display: flex; align-items: center; gap: 0.6rem; }
+        .notif-btn {
+            position: relative;
+            width: 42px;
+            height: 42px;
+            padding: 0;
+            border-radius: 12px;
+        }
+
+        .notif-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .notif-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--success);
+            box-shadow: 0 0 0 2px rgba(5, 9, 15, 0.95);
+        }
 
         .btn {
             display: inline-flex;
@@ -1157,6 +1181,9 @@
 <div class="page-grid"></div>
 
 <div class="site">
+    @php
+        $homeUnreadNotifications = auth()->check() ? auth()->user()->unreadNotifications()->count() : 0;
+    @endphp
 
     <!-- ── TOPBAR ── -->
     <header class="topbar" id="topbar">
@@ -1167,19 +1194,35 @@
 
         <nav class="main-nav" aria-label="Main navigation">
             <a href="{{ auth()->check() ? route('personal.dashboard') : route('login') }}">Personal Dashboard</a>
-            <a href="#business">Business</a>
             <a href="{{ auth()->check() ? route('personal.cards') : route('login') }}">Cards</a>
             <a href="{{ auth()->check() ? route('personal.loan') : route('login') }}">Loans</a>
-            <a href="#insights">Insights</a>
             <a href="{{ route('about') }}">About Us</a>
+            <a href="{{ auth()->check() ? route('contact.create') : route('login') }}">Contact</a>
+            @auth
+                @if (Auth::user()?->isAdminUser())
+                    <a href="{{ route('admin.dashboard') }}">Admin Dashboard</a>
+                @endif
+            @endauth
         </nav>
 
         <nav class="auth-nav" aria-label="Auth">
             @auth
-                @if (Auth::user()?->isAdminUser())
-                    <a href="{{ route('admin.dashboard') }}" class="btn btn-admin-top">Admin Dashboard</a>
-                @endif
-                <details class="profile-menu">
+                <div class="profile-actions">
+                    <a
+                        href="{{ route('personal.dashboard') }}"
+                        class="btn btn-secondary notif-btn"
+                        aria-label="Notifications{{ $homeUnreadNotifications > 0 ? ' (' . $homeUnreadNotifications . ' unread)' : '' }}"
+                        title="Notifications"
+                    >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                            <path d="M14.5 18a2.5 2.5 0 0 1-5 0"></path>
+                            <path d="M18 16V11a6 6 0 1 0-12 0v5l-2 2h16l-2-2z"></path>
+                        </svg>
+                        @if ($homeUnreadNotifications > 0)
+                            <span class="notif-badge" aria-hidden="true"></span>
+                        @endif
+                    </a>
+                    <details class="profile-menu">
                     <summary class="btn btn-secondary profile-trigger">
                         <span class="{{ Auth::user()?->isAdminUser() ? 'gold-name' : '' }}">{{ Auth::user()->name }}</span> ▾
                     </summary>
@@ -1187,13 +1230,14 @@
                         @if (Auth::user()?->isAdminUser())
                             <a href="{{ route('admin.dashboard') }}" class="dropdown-link">Admin Dashboard</a>
                         @endif
-                        <a href="{{ route('profile.edit') }}" class="dropdown-link">Profile</a>
+                        <a href="{{ route('profile.edit') }}" class="dropdown-link">Manage Profile</a>
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
                             <button type="submit" class="dropdown-link logout-link">Logout</button>
                         </form>
                     </div>
-                </details>
+                    </details>
+                </div>
             @else
                 <a href="{{ route('login') }}" class="btn btn-secondary">Login</a>
                 <a href="{{ route('register') }}" class="btn btn-primary">Register</a>
@@ -1651,4 +1695,3 @@ document.addEventListener('mousemove', (e) => {
 </script>
 </body>
 </html>
-

@@ -136,6 +136,45 @@
             border-color: var(--border-glow);
             color: var(--text);
         }
+        .mars-topbar-right { display: flex; align-items: center; gap: 0.75rem; }
+        .mars-notif {
+            width: 40px; height: 40px; border-radius: 12px;
+            border: 1px solid var(--border); background: var(--panel);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--muted); position: relative; text-decoration: none;
+            transition: border-color 0.2s, background 0.2s, color 0.2s;
+        }
+        .mars-notif:hover { border-color: var(--border-glow); color: var(--text); background: rgba(255,255,255,0.03); }
+        .mars-notif-dot {
+            position: absolute; top: 8px; right: 8px;
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--success); border: 2px solid var(--bg);
+        }
+        .mars-profile-menu { position: relative; list-style: none; }
+        .mars-profile-menu summary { list-style: none; cursor: pointer; }
+        .mars-profile-menu summary::-webkit-details-marker { display: none; }
+        .mars-profile-trigger {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            min-height: 40px; padding: 0.55rem 1rem;
+            border-radius: 12px; border: 1px solid var(--border);
+            background: var(--panel); color: var(--text);
+            font-size: 0.9rem; font-weight: 700;
+        }
+        .mars-profile-dropdown {
+            position: absolute; top: calc(100% + 0.55rem); right: 0;
+            min-width: 180px; padding: 0.4rem;
+            border-radius: 14px; border: 1px solid var(--border-glow);
+            background: rgba(11,20,37,0.98);
+            box-shadow: 0 20px 40px rgba(2,6,23,0.45);
+        }
+        .mars-profile-link {
+            display: block; width: 100%;
+            padding: 0.65rem 0.8rem; border: none; background: none;
+            border-radius: 10px; text-align: left; text-decoration: none;
+            color: var(--muted); font: inherit; cursor: pointer;
+        }
+        .mars-profile-link:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+        .mars-profile-link.logout { color: var(--danger); }
 
         /* Hero header */
         .mars-hero {
@@ -844,13 +883,42 @@
 
         <div class="mars-content">
             <!-- Topbar -->
+            @php
+                $loanUnreadNotifications = auth()->user()->unreadNotifications()->count();
+            @endphp
             <nav class="mars-topbar">
                 <div class="mars-breadcrumb">
-                    <a href="{{ route('home') }}">🏠 Home</a>
-                    <a href="{{ route('profile.edit') }}">👤 Profile</a>
+                    <a href="{{ route('home') }}">Home</a>
+                    <a href="{{ route('profile.edit') }}">Profile</a>
                     <span style="color:#7b93b8">/ Loans</span>
                 </div>
-                <button type="button" onclick="history.back()" class="mars-back-btn">← Back</button>
+                <div class="mars-topbar-right">
+                    <button type="button" onclick="history.back()" class="mars-back-btn">Back</button>
+                    <a
+                        href="{{ route('personal.dashboard') }}"
+                        class="mars-notif"
+                        aria-label="Notifications{{ $loanUnreadNotifications > 0 ? ' (' . $loanUnreadNotifications . ' unread)' : '' }}"
+                        title="Notifications"
+                    >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18" aria-hidden="true">
+                            <path d="M14.5 18a2.5 2.5 0 0 1-5 0"></path>
+                            <path d="M18 16V11a6 6 0 1 0-12 0v5l-2 2h16l-2-2z"></path>
+                        </svg>
+                        @if ($loanUnreadNotifications > 0)
+                            <span class="mars-notif-dot" aria-hidden="true"></span>
+                        @endif
+                    </a>
+                    <details class="mars-profile-menu">
+                        <summary class="mars-profile-trigger">{{ auth()->user()->name }} v</summary>
+                        <div class="mars-profile-dropdown">
+                            <a href="{{ route('profile.edit') }}" class="mars-profile-link">Manage Profile</a>
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit" class="mars-profile-link logout">Logout</button>
+                            </form>
+                        </div>
+                    </details>
+                </div>
             </nav>
 
             <!-- Hero -->
@@ -1038,7 +1106,9 @@
                             </thead>
                             <tbody>
                                 @foreach ($loanRequests as $loanRequest)
-                                    @php $st = strtolower((string)$loanRequest->status); @endphp
+                                    @php
+                                        $st = strtolower((string) $loanRequest->status);
+                                    @endphp
                                     <tr>
                                         <td style="color:#7ec8f7;font-weight:600">#{{ $loanRequest->LR_ID }}</td>
                                         <td style="font-weight:600">Tk {{ number_format((float)$loanRequest->requested_amount, 2) }}</td>
@@ -1313,3 +1383,5 @@
     })();
     </script>
 </x-app-layout>
+
+
