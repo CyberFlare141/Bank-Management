@@ -577,6 +577,7 @@
                     lastPage = Number(meta.last_page || 1);
 
                     items.forEach(renderNotification);
+                    
 
                     const totalButtons = listEl.querySelectorAll('button').length;
                     emptyEl.classList.toggle('hidden', totalButtons > 0);
