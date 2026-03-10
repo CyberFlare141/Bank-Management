@@ -111,6 +111,7 @@
             display: flex; align-items: center; gap: 0.6rem;
             font-size: 1.2rem; font-weight: 800; letter-spacing: -0.02em;
             color: var(--text);
+            text-decoration: none;
         }
         .mars-logo-icon {
             width: 36px; height: 36px; border-radius: 10px;
@@ -131,14 +132,6 @@
         .mars-nav-link:hover { color: var(--text); background: rgba(255,255,255,0.04); }
         .mars-nav-link.active { color: var(--text); background: rgba(59,130,246,0.1); }
         .mars-nav-right { display: flex; align-items: center; gap: 0.75rem; }
-        .mars-avatar {
-            width: 40px; height: 40px; border-radius: 12px;
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
-            display: flex; align-items: center; justify-content: center;
-            font-size: 0.9rem; font-weight: 800; color: #fff;
-            box-shadow: 0 0 0 2px rgba(59,130,246,0.3);
-            cursor: pointer;
-        }
         .mars-notif {
             width: 40px; height: 40px; border-radius: 12px;
             border: 1px solid var(--border); background: var(--card);
@@ -154,6 +147,32 @@
             animation: notifPulse 2s ease-in-out infinite;
         }
         @keyframes notifPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.5); } 50% { box-shadow: 0 0 0 5px rgba(59,130,246,0); } }
+        .mars-profile-menu { position: relative; list-style: none; }
+        .mars-profile-menu summary { list-style: none; cursor: pointer; }
+        .mars-profile-menu summary::-webkit-details-marker { display: none; }
+        .mars-profile-trigger {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            min-height: 40px; padding: 0.55rem 1rem;
+            border-radius: 12px; border: 1px solid var(--border);
+            background: var(--card); color: var(--text);
+            font-size: 0.9rem; font-weight: 700;
+        }
+        .mars-profile-trigger:hover { border-color: var(--border-hi); background: var(--card-hi); }
+        .mars-profile-dropdown {
+            position: absolute; top: calc(100% + 0.55rem); right: 0;
+            min-width: 180px; padding: 0.4rem;
+            border-radius: 14px; border: 1px solid var(--border-hi);
+            background: rgba(9,16,31,0.98);
+            box-shadow: 0 20px 40px rgba(2,6,23,0.45);
+        }
+        .mars-profile-link {
+            display: block; width: 100%;
+            padding: 0.65rem 0.8rem; border: none; background: none;
+            border-radius: 10px; text-align: left; text-decoration: none;
+            color: var(--muted); font: inherit; cursor: pointer;
+        }
+        .mars-profile-link:hover { background: rgba(59,130,246,0.08); color: var(--text); }
+        .mars-profile-link.logout { color: var(--danger); }
 
         /* ═══ HERO ROW ═══ */
         .mars-hero {
@@ -674,18 +693,19 @@
 
             {{-- TOP NAV --}}
             <nav class="mars-nav">
-                <div class="mars-logo">
+                <a href="{{ route('home') }}" class="mars-logo" aria-label="MARS home">
                     <div class="mars-logo-icon">M</div>
                     MARS
-                </div>
+                </a>
                 <div class="mars-nav-links">
                     <span class="mars-nav-link active">Dashboard</span>
-                    <a href="{{ route('home') }}" class="mars-nav-link">Home</a>
-                    <a href="{{ route('profile.edit') }}" class="mars-nav-link">Profile</a>
-                    <a href="{{ route('personal.dashboard') }}" class="mars-nav-link">Personal Dashboard</a>
                     <a href="{{ route('personal.cards') }}" class="mars-nav-link">Cards</a>
+                    <a href="{{ route('personal.loan') }}" class="mars-nav-link">Loans</a>
+                    <a href="{{ route('about') }}" class="mars-nav-link">About Us</a>
+                    <a href="{{ route('contact.create') }}" class="mars-nav-link">Contact</a>
                 </div>
                 <div class="mars-nav-right">
+                    <button type="button" class="mars-nav-link" onclick="window.history.length > 1 ? window.history.back() : window.location.assign('{{ route('home') }}')">Back</button>
                     <div class="mars-notif" aria-label="Notifications">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
                             <path d="M14.5 18a2.5 2.5 0 0 1-5 0"></path>
@@ -695,7 +715,16 @@
                             <div class="mars-notif-dot"></div>
                         @endif
                     </div>
-                    <div class="mars-avatar" title="{{ $user->name }}">{{ strtoupper(substr($user->name, 0, 1)) }}</div>
+                    <details class="mars-profile-menu">
+                        <summary class="mars-profile-trigger">{{ $user->name }} ▾</summary>
+                        <div class="mars-profile-dropdown">
+                            <a href="{{ route('profile.edit') }}" class="mars-profile-link">Manage Profile</a>
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit" class="mars-profile-link logout">Logout</button>
+                            </form>
+                        </div>
+                    </details>
                 </div>
             </nav>
 
