@@ -67,13 +67,45 @@ class LoanService
         );
 
         foreach ($pendingRequests as $loanRequest) {
-            DB::transaction(function () use ($loanRequest, $customerId, $accountNumber): void {
-                if ($this->hasOutstandingLoan($customerId)) {
+            $this->runSerializableTransaction(function () use ($loanRequest, $customerId, $accountNumber): void {
+                $lockedRequest = DB::selectOne(
+                    'SELECT LR_ID, B_ID, requested_amount, status
+                     FROM loan_requests
+                     WHERE LR_ID = ?
+                     FOR UPDATE',
+                    [(int) $loanRequest->LR_ID]
+                );
+
+                if (!$lockedRequest || strtolower((string) $lockedRequest->status) !== 'processing') {
+                    return;
+                }
+
+                $lockedCustomer = DB::selectOne(
+                    'SELECT C_ID FROM customers WHERE C_ID = ? FOR UPDATE',
+                    [$customerId]
+                );
+
+                if (!$lockedCustomer || $this->hasOutstandingLoan($customerId, true)) {
                     DB::update(
                         'UPDATE loan_requests
                          SET status = ?, decision_note = ?, processed_at = NOW(), updated_at = NOW()
                          WHERE LR_ID = ?',
-                        ['rejected', 'Rejected because there is an existing unpaid loan.', (int) $loanRequest->LR_ID]
+                        ['rejected', 'Rejected because there is an existing unpaid loan.', (int) $lockedRequest->LR_ID]
+                    );
+                    return;
+                }
+
+                $lockedAccount = DB::selectOne(
+                    'SELECT A_Number FROM accounts WHERE A_Number = ? AND C_ID = ? FOR UPDATE',
+                    [$accountNumber, $customerId]
+                );
+
+                if (!$lockedAccount) {
+                    DB::update(
+                        'UPDATE loan_requests
+                         SET status = ?, decision_note = ?, processed_at = NOW(), updated_at = NOW()
+                         WHERE LR_ID = ?',
+                        ['rejected', 'Rejected because no valid account exists for this customer.', (int) $lockedRequest->LR_ID]
                     );
                     return;
                 }
@@ -84,10 +116,10 @@ class LoanService
                      VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
                     [
                         $customerId,
-                        (int) $loanRequest->B_ID,
-                        'Instant Tk ' . number_format((float) $loanRequest->requested_amount, 2) . ' Loan',
-                        (float) $loanRequest->requested_amount,
-                        (float) $loanRequest->requested_amount,
+                        (int) $lockedRequest->B_ID,
+                        'Instant Tk ' . number_format((float) $lockedRequest->requested_amount, 2) . ' Loan',
+                        (float) $lockedRequest->requested_amount,
+                        (float) $lockedRequest->requested_amount,
                         0,
                         'active',
                     ]
@@ -98,14 +130,14 @@ class LoanService
                 DB::insert(
                     'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                      VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
-                    [$accountNumber, $customerId, 'loan_disbursement', (float) $loanRequest->requested_amount]
+                    [$accountNumber, $customerId, 'loan_disbursement', (float) $lockedRequest->requested_amount]
                 );
 
                 DB::update(
                     'UPDATE loan_requests
                      SET status = ?, approved_loan_id = ?, decision_note = ?, processed_at = NOW(), updated_at = NOW()
                      WHERE LR_ID = ?',
-                    ['accepted', $newLoanId, 'Accepted and disbursed to account.', (int) $loanRequest->LR_ID]
+                    ['accepted', $newLoanId, 'Accepted and disbursed to account.', (int) $lockedRequest->LR_ID]
                 );
             });
         }
@@ -131,8 +163,9 @@ class LoanService
         return $branch ? (int) $branch->B_ID : null;
     }
 
-    public function hasOutstandingLoan(int $customerId): bool
+    public function hasOutstandingLoan(int $customerId, bool $lock = false): bool
     {
+        $lockClause = $lock && DB::transactionLevel() > 0 ? ' FOR UPDATE' : '';
         $row = DB::selectOne(
             'SELECT L_ID
              FROM loans
@@ -141,7 +174,7 @@ class LoanService
                     remaining_amount > 0
                     OR (remaining_amount IS NULL AND L_Amount > 0)
                )
-             LIMIT 1',
+             LIMIT 1' . $lockClause,
             [$customerId]
         );
 
@@ -150,7 +183,12 @@ class LoanService
 
     public function disburseInstantLoan(int $customerId, int $accountNumber, int $branchId, float $requestedAmount): void
     {
-        DB::transaction(function () use ($customerId, $accountNumber, $branchId, $requestedAmount): void {
+        $this->runSerializableTransaction(function () use ($customerId, $accountNumber, $branchId, $requestedAmount): void {
+            DB::selectOne(
+                'SELECT C_ID FROM customers WHERE C_ID = ? FOR UPDATE',
+                [$customerId]
+            );
+
             $lockedAccount = DB::selectOne(
                 'SELECT A_Number FROM accounts WHERE A_Number = ? AND C_ID = ? FOR UPDATE',
                 [$accountNumber, $customerId]
@@ -162,7 +200,7 @@ class LoanService
                 ]);
             }
 
-            if ($this->hasOutstandingLoan($customerId)) {
+            if ($this->hasOutstandingLoan($customerId, true)) {
                 throw ValidationException::withMessages([
                     'loan' => 'You already have an unpaid loan. Repay it before requesting a new loan.',
                 ]);
@@ -207,7 +245,7 @@ class LoanService
 
     public function repayLoan(int $customerId, int $accountNumber, int $loanId, float $repaymentAmount): array
     {
-        return DB::transaction(function () use ($customerId, $accountNumber, $loanId, $repaymentAmount): array {
+        return $this->runSerializableTransaction(function () use ($customerId, $accountNumber, $loanId, $repaymentAmount): array {
             $loan = DB::selectOne(
                 'SELECT L_ID, L_Amount, remaining_amount, status
                  FROM loans
@@ -317,7 +355,7 @@ class LoanService
 
     public function approveLoanRequest(int $loanRequestId): void
     {
-        DB::transaction(function () use ($loanRequestId): void {
+        $this->runSerializableTransaction(function () use ($loanRequestId): void {
             $loanRequest = DB::selectOne(
                 'SELECT LR_ID, C_ID, B_ID, requested_amount, status
                  FROM loan_requests
@@ -371,7 +409,7 @@ class LoanService
 
     private function applyMonthlyInterestToLoanId(int $loanId): void
     {
-        DB::transaction(function () use ($loanId): void {
+        $this->runSerializableTransaction(function () use ($loanId): void {
             $loan = DB::selectOne(
                 'SELECT L_ID, L_Amount, remaining_amount, status, created_at, last_interest_applied_at
                  FROM loans
@@ -422,5 +460,21 @@ class LoanService
                 ]
             );
         });
+    }
+
+    /**
+     * Run money-sensitive work inside a SERIALIZABLE transaction with retry.
+     * Falls back to the current transaction when already inside one to avoid nested isolation issues.
+     */
+    private function runSerializableTransaction(callable $callback): mixed
+    {
+        if (DB::transactionLevel() > 0) {
+            return $callback();
+        }
+
+        return DB::transaction(function () use ($callback) {
+            DB::statement('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+            return $callback();
+        }, 3);
     }
 }
