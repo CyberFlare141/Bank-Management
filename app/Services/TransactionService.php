@@ -18,7 +18,7 @@ class TransactionService
         $normalizedAmount = $this->normalizeAmount($amount);
         $reference = $this->generateReference('FT');
 
-        return DB::transaction(function () use ($userId, $customerId, $accountNumber, $recipientIdentifier, $normalizedAmount, $note, $reference): array {
+        return $this->runSerializableTransaction(function () use ($userId, $customerId, $accountNumber, $recipientIdentifier, $normalizedAmount, $note, $reference): array {
             $sender = DB::selectOne(
                 'SELECT A_Number, C_ID, A_Balance FROM accounts WHERE A_Number = ? FOR UPDATE',
                 [$accountNumber]
@@ -108,7 +108,7 @@ class TransactionService
         $normalizedAmount = $this->normalizeAmount($amount);
         $reference = $this->generateReference('BILL');
 
-        return DB::transaction(function () use ($userId, $customerId, $accountNumber, $billType, $billNumber, $normalizedAmount, $reference): array {
+        return $this->runSerializableTransaction(function () use ($userId, $customerId, $accountNumber, $billType, $billNumber, $normalizedAmount, $reference): array {
             $sender = DB::selectOne(
                 'SELECT A_Number, A_Balance FROM accounts WHERE A_Number = ? FOR UPDATE',
                 [$accountNumber]
@@ -176,7 +176,7 @@ class TransactionService
         $normalizedAmount = $this->normalizeAmount($amount);
         $reference = $this->generateReference('RCH');
 
-        return DB::transaction(function () use ($userId, $customerId, $accountNumber, $rechargeApp, $recipient, $normalizedAmount, $reference): array {
+        return $this->runSerializableTransaction(function () use ($userId, $customerId, $accountNumber, $rechargeApp, $recipient, $normalizedAmount, $reference): array {
             $sender = DB::selectOne(
                 'SELECT A_Number FROM accounts WHERE A_Number = ? FOR UPDATE',
                 [$accountNumber]
@@ -245,5 +245,21 @@ class TransactionService
     private function toMinorUnits(float|int|string $amount): int
     {
         return (int) round(((float) $amount) * 100);
+    }
+
+    /**
+     * Run a closure inside a high‑isolation transaction with retry.
+     * Uses SERIALIZABLE for core money movements to prevent phantom/dirty reads.
+     */
+    private function runSerializableTransaction(callable $callback): mixed
+    {
+        if (DB::transactionLevel() > 0) {
+            return $callback();
+        }
+
+        return DB::transaction(function () use ($callback) {
+            DB::statement('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+            return $callback();
+        }, 3);
     }
 }
