@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Notifications\BankingNotification;
 use App\Services\AccountService;
+use App\Services\AuditLogService;
 use App\Services\TransactionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,7 +31,8 @@ class TransactionController extends Controller
 
     public function __construct(
         private readonly TransactionService $transactionService,
-        private readonly AccountService $accountService
+        private readonly AccountService $accountService,
+        private readonly AuditLogService $auditLogService
     ) {
     }
 
@@ -46,10 +48,22 @@ class TransactionController extends Controller
         $user = auth()->user();
         $context = $this->accountService->getUserBankingContext((string) $user->email);
         if (!$context) {
+            $this->auditLogService->log('fund_transfer', 'failed', [
+                'user_id' => (int) $user->id,
+                'message' => 'Customer profile or account is missing.',
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail('Customer profile or account is missing.');
         }
 
         if (!Hash::check((string) $validated['quick_action_password'], (string) $user->password)) {
+            $this->auditLogService->log('fund_transfer', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => 'Security password is incorrect.',
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail('Security password is incorrect.');
         }
 
@@ -63,14 +77,39 @@ class TransactionController extends Controller
                 trim((string) ($validated['note'] ?? ''))
             );
         } catch (ValidationException $e) {
+            $this->auditLogService->log('fund_transfer', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => $e->validator->errors()->first() ?: 'Transfer failed.',
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail($e->validator->errors()->first() ?: 'Transfer failed.');
         } catch (\Throwable $e) {
             Log::error('Fund transfer failed.', [
                 'user_id' => (int) $user->id,
                 'error' => $e->getMessage(),
             ]);
+            $this->auditLogService->log('fund_transfer', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => $e->getMessage(),
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail('Transfer failed. Please try again.');
         }
+
+        $this->auditLogService->log('fund_transfer', 'success', [
+            'user_id' => (int) $user->id,
+            'customer_id' => (int) $context->C_ID,
+            'account_number' => (int) $context->A_Number,
+            'entity_type' => 'quick_action',
+            'entity_id' => (string) ($result['reference'] ?? ''),
+            'message' => 'Fund transfer completed successfully.',
+            'request_payload' => $validated,
+            'response_payload' => $result,
+        ], $request);
 
         $this->notifyQuickActionSuccess($user, $result);
 
@@ -89,10 +128,22 @@ class TransactionController extends Controller
         $user = auth()->user();
         $context = $this->accountService->getUserBankingContext((string) $user->email);
         if (!$context) {
+            $this->auditLogService->log('bill_payment', 'failed', [
+                'user_id' => (int) $user->id,
+                'message' => 'Customer profile or account is missing.',
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail('Customer profile or account is missing.');
         }
 
         if (!Hash::check((string) $validated['quick_action_password'], (string) $user->password)) {
+            $this->auditLogService->log('bill_payment', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => 'Security password is incorrect.',
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail('Security password is incorrect.');
         }
 
@@ -106,14 +157,39 @@ class TransactionController extends Controller
                 (float) $validated['amount']
             );
         } catch (ValidationException $e) {
+            $this->auditLogService->log('bill_payment', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => $e->validator->errors()->first() ?: 'Bill payment failed.',
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail($e->validator->errors()->first() ?: 'Bill payment failed.');
         } catch (\Throwable $e) {
             Log::error('Bill payment failed.', [
                 'user_id' => (int) $user->id,
                 'error' => $e->getMessage(),
             ]);
+            $this->auditLogService->log('bill_payment', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => $e->getMessage(),
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail('Bill payment failed. Please try again.');
         }
+
+        $this->auditLogService->log('bill_payment', 'success', [
+            'user_id' => (int) $user->id,
+            'customer_id' => (int) $context->C_ID,
+            'account_number' => (int) $context->A_Number,
+            'entity_type' => 'quick_action',
+            'entity_id' => (string) ($result['reference'] ?? ''),
+            'message' => 'Bill payment completed successfully.',
+            'request_payload' => $validated,
+            'response_payload' => $result,
+        ], $request);
 
         $this->notifyQuickActionSuccess($user, $result);
 
@@ -132,10 +208,22 @@ class TransactionController extends Controller
         $user = auth()->user();
         $context = $this->accountService->getUserBankingContext((string) $user->email);
         if (!$context) {
+            $this->auditLogService->log('recharge', 'failed', [
+                'user_id' => (int) $user->id,
+                'message' => 'Customer profile or account is missing.',
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail('Customer profile or account is missing.');
         }
 
         if (!Hash::check((string) $validated['quick_action_password'], (string) $user->password)) {
+            $this->auditLogService->log('recharge', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => 'Security password is incorrect.',
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail('Security password is incorrect.');
         }
 
@@ -149,14 +237,39 @@ class TransactionController extends Controller
                 (float) $validated['amount']
             );
         } catch (ValidationException $e) {
+            $this->auditLogService->log('recharge', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => $e->validator->errors()->first() ?: 'Recharge failed.',
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail($e->validator->errors()->first() ?: 'Recharge failed.');
         } catch (\Throwable $e) {
             Log::error('Recharge failed.', [
                 'user_id' => (int) $user->id,
                 'error' => $e->getMessage(),
             ]);
+            $this->auditLogService->log('recharge', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => $e->getMessage(),
+                'request_payload' => $validated,
+            ], $request);
             return $this->quickActionFail('Recharge failed. Please try again.');
         }
+
+        $this->auditLogService->log('recharge', 'success', [
+            'user_id' => (int) $user->id,
+            'customer_id' => (int) $context->C_ID,
+            'account_number' => (int) $context->A_Number,
+            'entity_type' => 'quick_action',
+            'entity_id' => (string) ($result['reference'] ?? ''),
+            'message' => 'Recharge completed successfully.',
+            'request_payload' => $validated,
+            'response_payload' => $result,
+        ], $request);
 
         $this->notifyQuickActionSuccess($user, $result);
 

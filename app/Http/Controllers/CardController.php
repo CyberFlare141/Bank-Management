@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\AccountService;
+use App\Services\AuditLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -12,7 +13,10 @@ use RuntimeException;
 
 class CardController extends Controller
 {
-    public function __construct(private readonly AccountService $accountService)
+    public function __construct(
+        private readonly AccountService $accountService,
+        private readonly AuditLogService $auditLogService
+    )
     {
     }
 
@@ -60,6 +64,11 @@ class CardController extends Controller
         $context = $this->accountService->getUserBankingContext((string) $user->email);
 
         if (!$context) {
+            $this->auditLogService->log('card_application', 'failed', [
+                'user_id' => (int) $user->id,
+                'message' => 'Customer profile is missing.',
+                'request_payload' => $request->except(['_token']),
+            ], $request);
             return back()
                 ->withInput()
                 ->with('card_error', 'Customer profile is missing. Please complete your profile first.');
@@ -112,12 +121,28 @@ class CardController extends Controller
                 'source_of_income' => $validated['source_of_income'] ?? null,
             ]);
         } catch (RuntimeException $e) {
+            $this->auditLogService->log('card_application', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'entity_type' => 'card_application',
+                'message' => $e->getMessage(),
+                'request_payload' => $validated,
+            ], $request);
             return back()->withInput()->with('card_error', $e->getMessage());
         } catch (\Throwable $e) {
             Log::error('Card application failed.', [
                 'user_id' => (int) $user->id,
                 'error' => $e->getMessage(),
             ]);
+            $this->auditLogService->log('card_application', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'entity_type' => 'card_application',
+                'message' => $e->getMessage(),
+                'request_payload' => $validated,
+            ], $request);
             return back()->withInput()->with('card_error', 'Application failed. Please try again.');
         }
 
@@ -126,6 +151,20 @@ class CardController extends Controller
             'customer_id' => (int) $context->C_ID,
             'card_category' => $cardType,
         ]);
+
+        $this->auditLogService->log('card_application', 'success', [
+            'user_id' => (int) $user->id,
+            'customer_id' => (int) $context->C_ID,
+            'account_number' => (int) $context->A_Number,
+            'entity_type' => 'card_application',
+            'entity_id' => $applicationId,
+            'message' => 'Card application submitted successfully.',
+            'request_payload' => $validated,
+            'response_payload' => [
+                'application_id' => $applicationId,
+                'card_type' => $cardType,
+            ],
+        ], $request);
 
         return redirect()
             ->route('personal.cards')
