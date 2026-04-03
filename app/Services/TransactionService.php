@@ -50,14 +50,19 @@ class TransactionService
             DB::insert(
                 'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                  VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
-                [(int) $sender->A_Number, $customerId, 'transfer_out', $normalizedAmount]
+                [(int) $sender->A_Number, $customerId, 'Fund Transfer Sent', $normalizedAmount]
             );
 
             if ($internalRecipient) {
                 DB::insert(
                     'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                      VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
-                    [(int) $internalRecipient->A_Number, (int) $internalRecipient->C_ID, 'transfer_in', $normalizedAmount]
+                    [
+                        (int) $internalRecipient->A_Number,
+                        (int) $internalRecipient->C_ID,
+                        'Fund Transfer Received from ' . (int) $sender->A_Number,
+                        $normalizedAmount,
+                    ]
                 );
             }
 
@@ -129,7 +134,12 @@ class TransactionService
             DB::insert(
                 'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                  VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
-                [(int) $sender->A_Number, $customerId, 'bill_payment', $normalizedAmount]
+                [
+                    (int) $sender->A_Number,
+                    $customerId,
+                    'Bill Payment - ' . ucfirst($billType) . ' (' . $billNumber . ')',
+                    $normalizedAmount,
+                ]
             );
 
             DB::insert(
@@ -191,7 +201,12 @@ class TransactionService
             DB::insert(
                 'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                  VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
-                [(int) $sender->A_Number, $customerId, 'recharge_credit', $normalizedAmount]
+                [
+                    (int) $sender->A_Number,
+                    $customerId,
+                    'Recharge Received - ' . $rechargeApp . ' (' . $recipient . ')',
+                    $normalizedAmount,
+                ]
             );
 
             DB::insert(
