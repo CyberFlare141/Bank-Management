@@ -882,45 +882,6 @@
         <canvas id="particles"></canvas>
 
         <div class="mars-content">
-            <!-- Topbar -->
-            @php
-                $loanUnreadNotifications = auth()->user()->unreadNotifications()->count();
-            @endphp
-            <nav class="mars-topbar">
-                <div class="mars-breadcrumb">
-                    <a href="{{ route('home') }}">Home</a>
-                    <a href="{{ route('profile.edit') }}">Profile</a>
-                    <span style="color:#7b93b8">/ Loans</span>
-                </div>
-                <div class="mars-topbar-right">
-                    <button type="button" onclick="history.back()" class="mars-back-btn">Back</button>
-                    <a
-                        href="{{ route('notifications.index') }}"
-                        class="mars-notif"
-                        aria-label="Notifications{{ $loanUnreadNotifications > 0 ? ' (' . $loanUnreadNotifications . ' unread)' : '' }}"
-                        title="Notifications"
-                    >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18" aria-hidden="true">
-                            <path d="M14.5 18a2.5 2.5 0 0 1-5 0"></path>
-                            <path d="M18 16V11a6 6 0 1 0-12 0v5l-2 2h16l-2-2z"></path>
-                        </svg>
-                        @if ($loanUnreadNotifications > 0)
-                            <span class="mars-notif-dot" aria-hidden="true"></span>
-                        @endif
-                    </a>
-                    <details class="mars-profile-menu">
-                        <summary class="mars-profile-trigger">{{ auth()->user()->name }} v</summary>
-                        <div class="mars-profile-dropdown">
-                            <a href="{{ route('profile.edit') }}" class="mars-profile-link">Manage Profile</a>
-                            <form method="POST" action="{{ route('logout') }}">
-                                @csrf
-                                <button type="submit" class="mars-profile-link logout">Logout</button>
-                            </form>
-                        </div>
-                    </details>
-                </div>
-            </nav>
-
             <!-- Hero -->
             <div class="mars-hero">
                 <div>
@@ -1383,4 +1344,5 @@
     })();
     </script>
 </x-app-layout>
+
 

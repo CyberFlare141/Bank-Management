@@ -47,6 +47,13 @@ class TransactionService
                 ]);
             }
 
+            DB::update(
+                'UPDATE accounts
+                 SET A_Balance = A_Balance - ?, updated_at = NOW()
+                 WHERE A_Number = ?',
+                [$normalizedAmount, (int) $sender->A_Number]
+            );
+
             DB::insert(
                 'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                  VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
@@ -54,6 +61,13 @@ class TransactionService
             );
 
             if ($internalRecipient) {
+                DB::update(
+                    'UPDATE accounts
+                     SET A_Balance = A_Balance + ?, updated_at = NOW()
+                     WHERE A_Number = ?',
+                    [$normalizedAmount, (int) $internalRecipient->A_Number]
+                );
+
                 DB::insert(
                     'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                      VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
@@ -131,6 +145,13 @@ class TransactionService
                 ]);
             }
 
+            DB::update(
+                'UPDATE accounts
+                 SET A_Balance = A_Balance - ?, updated_at = NOW()
+                 WHERE A_Number = ?',
+                [$normalizedAmount, (int) $sender->A_Number]
+            );
+
             DB::insert(
                 'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                  VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
@@ -188,7 +209,7 @@ class TransactionService
 
         return $this->runSerializableTransaction(function () use ($userId, $customerId, $accountNumber, $rechargeApp, $recipient, $normalizedAmount, $reference): array {
             $sender = DB::selectOne(
-                'SELECT A_Number FROM accounts WHERE A_Number = ? FOR UPDATE',
+                'SELECT A_Number, A_Balance FROM accounts WHERE A_Number = ? FOR UPDATE',
                 [$accountNumber]
             );
 
@@ -198,13 +219,26 @@ class TransactionService
                 ]);
             }
 
+            if ($this->hasInsufficientBalance((float) $sender->A_Balance, $normalizedAmount)) {
+                throw ValidationException::withMessages([
+                    'recharge' => 'Insufficient balance for this recharge.',
+                ]);
+            }
+
+            DB::update(
+                'UPDATE accounts
+                 SET A_Balance = A_Balance - ?, updated_at = NOW()
+                 WHERE A_Number = ?',
+                [$normalizedAmount, (int) $sender->A_Number]
+            );
+
             DB::insert(
                 'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                  VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
                 [
                     (int) $sender->A_Number,
                     $customerId,
-                    'Recharge Received - ' . $rechargeApp . ' (' . $recipient . ')',
+                    'Recharge - ' . $rechargeApp . ' (' . $recipient . ')',
                     $normalizedAmount,
                 ]
             );
@@ -272,9 +306,14 @@ class TransactionService
             return $callback();
         }
 
-        return DB::transaction(function () use ($callback) {
-            DB::statement('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
-            return $callback();
-        }, 3);
+        DB::statement('SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+
+        try {
+            return DB::transaction(function () use ($callback) {
+                return $callback();
+            }, 3);
+        } finally {
+            DB::statement('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+        }
     }
 }

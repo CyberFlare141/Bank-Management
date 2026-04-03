@@ -68,63 +68,77 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 1rem 4vw;
-            background: rgba(5, 9, 15, 0.75);
+            gap: 1rem;
+            padding: 1rem 1.2rem;
+            margin: 0.9rem auto 0;
+            width: min(1280px, calc(100% - 2rem));
+            border: 1px solid rgba(80, 160, 240, 0.14);
+            border-radius: 22px;
+            background:
+                radial-gradient(circle at top left, rgba(59, 158, 255, 0.12), transparent 30%),
+                rgba(5, 9, 15, 0.78);
             backdrop-filter: blur(16px);
-            border-bottom: 1px solid var(--border);
-            transition: background 0.3s;
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.03);
+            transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
         }
 
         .topbar.scrolled {
             background: rgba(5, 9, 15, 0.95);
-            border-bottom-color: rgba(80,160,240,0.2);
+            border-color: rgba(80,160,240,0.22);
+            box-shadow: 0 20px 56px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255,255,255,0.04);
         }
 
         .brand {
             display: flex;
             align-items: center;
-            gap: 0.6rem;
+            gap: 0.8rem;
             text-decoration: none;
         }
 
         .brand-mark {
-            width: 36px; height: 36px;
-            border-radius: 10px;
+            width: 42px; height: 42px;
+            border-radius: 14px;
             background: linear-gradient(135deg, var(--blue), var(--blue-b));
             display: flex; align-items: center; justify-content: center;
             font-family: 'Syne', sans-serif;
             font-weight: 800;
             font-size: 1rem;
             color: #fff;
-            box-shadow: 0 0 18px rgba(59,158,255,0.4);
+            box-shadow: 0 12px 28px rgba(59,158,255,0.35);
         }
 
         .brand-text {
             font-family: 'Syne', sans-serif;
             font-weight: 800;
-            font-size: 1.15rem;
-            letter-spacing: 0.1em;
+            font-size: 1rem;
+            letter-spacing: 0.12em;
             color: #dceeff;
         }
 
         .main-nav {
             display: flex;
-            gap: 0.25rem;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.3rem;
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            border-radius: 999px;
+            background: rgba(14, 26, 48, 0.58);
         }
 
         .main-nav a {
             color: var(--muted);
             text-decoration: none;
-            font-size: 0.85rem;
-            font-weight: 500;
-            padding: 0.45rem 0.85rem;
-            border-radius: 8px;
-            transition: color 0.2s, background 0.2s;
+            font-size: 0.83rem;
+            font-weight: 700;
+            padding: 0.55rem 0.95rem;
+            border-radius: 999px;
+            transition: color 0.2s, background 0.2s, transform 0.2s;
         }
 
         .main-nav a:hover {
             color: var(--text);
-            background: rgba(80,160,240,0.08);
+            background: rgba(80,160,240,0.1);
+            transform: translateY(-1px);
         }
 
         .auth-nav { display: flex; align-items: center; gap: 0.6rem; }
@@ -134,7 +148,7 @@
             width: 42px;
             height: 42px;
             padding: 0;
-            border-radius: 12px;
+            border-radius: 14px;
         }
 
         .notif-btn svg {
@@ -160,11 +174,11 @@
             gap: 0.4rem;
             text-decoration: none;
             border: none;
-            border-radius: 10px;
+            border-radius: 14px;
             font-family: 'Syne', sans-serif;
             font-weight: 700;
             font-size: 0.82rem;
-            padding: 0.5rem 1rem;
+            padding: 0.65rem 1rem;
             cursor: pointer;
             transition: all 0.22s;
             letter-spacing: 0.02em;
@@ -183,13 +197,13 @@
 
         .btn-secondary {
             background: rgba(14, 26, 48, 0.8);
-            border: 1px solid var(--border-h);
+            border: 1px solid rgba(148, 163, 184, 0.14);
             color: var(--text);
         }
 
         .btn-secondary:hover {
             background: rgba(80,160,240,0.1);
-            border-color: rgba(80,160,240,0.5);
+            border-color: rgba(80,160,240,0.38);
         }
 
         .btn-gold {
@@ -232,22 +246,22 @@
             position: absolute;
             top: calc(100% + 0.5rem);
             right: 0;
-            min-width: 160px;
+            min-width: 200px;
             background: rgba(9,18,36,0.98);
-            border: 1px solid var(--border-h);
-            border-radius: 12px;
-            padding: 0.4rem;
+            border: 1px solid rgba(80,160,240,0.18);
+            border-radius: 18px;
+            padding: 0.45rem;
             backdrop-filter: blur(12px);
             box-shadow: 0 16px 40px rgba(0,0,0,0.5);
         }
 
         .dropdown-link {
             display: block;
-            padding: 0.55rem 0.75rem;
+            padding: 0.75rem 0.9rem;
             color: var(--muted);
             text-decoration: none;
             font-size: 0.84rem;
-            border-radius: 8px;
+            border-radius: 12px;
             transition: all 0.18s;
             background: none;
             border: none;
@@ -1151,6 +1165,10 @@
 
         /* ── RESPONSIVE ── */
         @media (max-width: 1024px) {
+            .topbar {
+                width: calc(100% - 1.5rem);
+                padding: 0.9rem;
+            }
             .hero-inner { grid-template-columns: 1fr; gap: 3rem; }
             .hero-right { display: none; }
             .products-grid { grid-template-columns: 1fr 1fr; }
@@ -1162,6 +1180,11 @@
 
         @media (max-width: 700px) {
             .main-nav { display: none; }
+            .topbar {
+                width: calc(100% - 1rem);
+                margin-top: 0.5rem;
+                padding: 0.8rem;
+            }
             .products-grid { grid-template-columns: 1fr; }
             .metrics-inner { grid-template-columns: 1fr 1fr; }
             .security-grid { grid-template-columns: 1fr; }
