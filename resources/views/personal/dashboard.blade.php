@@ -690,47 +690,6 @@
         </div>
 
         <div class="mars-wrap">
-
-            {{-- TOP NAV --}}
-            <nav class="mars-nav">
-                <a href="{{ route('home') }}" class="mars-logo" aria-label="MARS home">
-                    <div class="mars-logo-icon">M</div>
-                    MARS
-                </a>
-                <div class="mars-nav-links">
-                    <span class="mars-nav-link active">Dashboard</span>
-                    <a href="{{ route('personal.cards') }}" class="mars-nav-link">Cards</a>
-                    <a href="{{ route('personal.loan') }}" class="mars-nav-link">Loans</a>
-                    <a href="{{ route('about') }}" class="mars-nav-link">About Us</a>
-                    <a href="{{ route('contact.create') }}" class="mars-nav-link">Contact</a>
-                </div>
-                <div class="mars-nav-right">
-                    <button type="button" class="mars-nav-link" onclick="window.history.length > 1 ? window.history.back() : window.location.assign('{{ route('home') }}')">Back</button>
-                    @php
-                        $dashboardUnreadNotifications = auth()->user()->unreadNotifications()->count();
-                    @endphp
-                    <a href="{{ route('notifications.index') }}" class="mars-notif" aria-label="Notifications{{ $dashboardUnreadNotifications > 0 ? ' (' . $dashboardUnreadNotifications . ' unread)' : '' }}" title="Notifications">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
-                            <path d="M14.5 18a2.5 2.5 0 0 1-5 0"></path>
-                            <path d="M18 16V11a6 6 0 1 0-12 0v5l-2 2h16l-2-2z"></path>
-                        </svg>
-                        @if($dashboardUnreadNotifications > 0)
-                            <div class="mars-notif-dot"></div>
-                        @endif
-                    </a>
-                    <details class="mars-profile-menu">
-                        <summary class="mars-profile-trigger">{{ $user->name }} ▾</summary>
-                        <div class="mars-profile-dropdown">
-                            <a href="{{ route('profile.edit') }}" class="mars-profile-link">Manage Profile</a>
-                            <form method="POST" action="{{ route('logout') }}">
-                                @csrf
-                                <button type="submit" class="mars-profile-link logout">Logout</button>
-                            </form>
-                        </div>
-                    </details>
-                </div>
-            </nav>
-
             {{-- HERO ROW --}}
             <div class="mars-hero">
 
@@ -1153,3 +1112,4 @@
         </div>
     </div>
 </x-app-layout>
+
