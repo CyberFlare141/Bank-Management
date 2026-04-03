@@ -145,6 +145,8 @@ class LoanService
 
     public function resolveBranchIdForLoan(string $customerEmail): ?int
     {
+        $this->ensureDefaultBranches();
+
         $existingBranch = DB::selectOne(
             'SELECT l.B_ID
              FROM loans l
@@ -161,6 +163,34 @@ class LoanService
 
         $branch = DB::selectOne('SELECT B_ID FROM branches ORDER BY B_ID ASC LIMIT 1');
         return $branch ? (int) $branch->B_ID : null;
+    }
+
+    private function ensureDefaultBranches(): void
+    {
+        $existing = DB::selectOne('SELECT B_ID FROM branches LIMIT 1');
+        if ($existing) {
+            return;
+        }
+
+        $branches = [
+            ['Dhanmondi Branch', 'Dhanmondi, Dhaka', 'DHKMARS001'],
+            ['Gulshan Branch', 'Gulshan, Dhaka', 'DHKMARS002'],
+            ['Uttara Branch', 'Uttara, Dhaka', 'DHKMARS003'],
+            ['Mirpur Branch', 'Mirpur, Dhaka', 'DHKMARS004'],
+            ['Motijheel Branch', 'Motijheel, Dhaka', 'DHKMARS005'],
+        ];
+
+        foreach ($branches as $branch) {
+            DB::insert(
+                'INSERT INTO branches (B_Name, B_Location, IFSC_Code, created_at, updated_at)
+                 SELECT ?, ?, ?, NOW(), NOW()
+                 FROM DUAL
+                 WHERE NOT EXISTS (
+                    SELECT 1 FROM branches WHERE IFSC_Code = ?
+                 )',
+                [$branch[0], $branch[1], $branch[2], $branch[2]]
+            );
+        }
     }
 
     public function hasOutstandingLoan(int $customerId, bool $lock = false): bool
@@ -472,9 +502,14 @@ class LoanService
             return $callback();
         }
 
-        return DB::transaction(function () use ($callback) {
-            DB::statement('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
-            return $callback();
-        }, 3);
+        DB::statement('SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+
+        try {
+            return DB::transaction(function () use ($callback) {
+                return $callback();
+            }, 3);
+        } finally {
+            DB::statement('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+        }
     }
 }
