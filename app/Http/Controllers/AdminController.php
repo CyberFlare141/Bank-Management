@@ -9,6 +9,7 @@ use App\Models\Loan;
 use App\Models\LoanRequest;
 use App\Models\User;
 use App\Notifications\ApplicationStatusNotification;
+use App\Services\UserBankingProfileService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,6 +18,11 @@ use Illuminate\View\View;
 
 class AdminController extends Controller
 {
+    public function __construct(
+        private readonly UserBankingProfileService $userBankingProfileService
+    ) {
+    }
+
     public function showLogin(): View
     {
         return view('admin.login');
@@ -25,27 +31,38 @@ class AdminController extends Controller
     public function login(Request $request): RedirectResponse
     {
         $credentials = $request->validate([
+            'account_number' => ['required', 'digits:11'],
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ]);
 
+        $adminUser = User::query()
+            ->where('email', $credentials['email'])
+            ->where('is_admin', true)
+            ->first();
+
+        if (!$adminUser) {
+            return back()->withErrors([
+                'email' => 'Invalid admin credentials.',
+            ])->onlyInput('email', 'account_number');
+        }
+
+        $adminAccount = $this->userBankingProfileService->ensureForUser($adminUser);
+
+        if ((string) $adminAccount->A_Number !== (string) $credentials['account_number']) {
+            return back()->withErrors([
+                'account_number' => 'Invalid admin credentials.',
+            ])->onlyInput('email', 'account_number');
+        }
+
         if (!Auth::attempt([
             'email' => $credentials['email'],
             'password' => $credentials['password'],
+            'is_admin' => true,
         ], $request->boolean('remember'))) {
             return back()->withErrors([
-                'email' => 'Invalid admin credentials.',
-            ])->onlyInput('email');
-        }
-
-        if (!$request->user() || !$request->user()->isAdminUser()) {
-            Auth::guard('web')->logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-
-            return back()->withErrors([
-                'email' => 'You do not have admin access.',
-            ])->onlyInput('email');
+                'account_number' => 'Invalid admin credentials.',
+            ])->onlyInput('email', 'account_number');
         }
 
         $request->session()->regenerate();
