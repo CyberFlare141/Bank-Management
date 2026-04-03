@@ -20,8 +20,10 @@ class AdminManagementTest extends TestCase
         $admin = User::factory()->admin()->create([
             'password' => 'secret12345',
         ]);
+        [, $account] = $this->createBankingProfileForUser($admin);
 
         $this->post(route('admin.login.submit'), [
+            'account_number' => (string) $account->A_Number,
             'email' => $admin->email,
             'password' => 'secret12345',
         ])->assertRedirect(route('admin.dashboard'));
@@ -36,6 +38,28 @@ class AdminManagementTest extends TestCase
         $this->actingAs($user)
             ->get(route('admin.dashboard'))
             ->assertForbidden();
+    }
+
+    public function test_matching_env_email_without_admin_flag_cannot_log_in_from_admin_page(): void
+    {
+        putenv('ADMIN_EMAIL=legacy-admin@example.com');
+        $_ENV['ADMIN_EMAIL'] = 'legacy-admin@example.com';
+        $_SERVER['ADMIN_EMAIL'] = 'legacy-admin@example.com';
+
+        $user = User::factory()->create([
+            'email' => 'legacy-admin@example.com',
+            'password' => 'secret12345',
+            'is_admin' => false,
+        ]);
+        [, $account] = $this->createBankingProfileForUser($user);
+
+        $this->post(route('admin.login.submit'), [
+            'account_number' => (string) $account->A_Number,
+            'email' => $user->email,
+            'password' => 'secret12345',
+        ])->assertSessionHasErrors(['email']);
+
+        $this->assertGuest();
     }
 
     public function test_admin_can_accept_loan_request(): void
@@ -131,5 +155,25 @@ class AdminManagementTest extends TestCase
         ]);
 
         return [$customer, $branch, $account];
+    }
+
+    private function createBankingProfileForUser(User $user): array
+    {
+        $customer = Customer::create([
+            'C_Name' => $user->name,
+            'C_Email' => $user->email,
+            'C_Address' => 'Admin Address',
+            'C_PhoneNumber' => '017' . random_int(10000000, 99999999),
+        ]);
+
+        $account = Account::create([
+            'A_Number' => random_int(10000000000, 99999999999),
+            'C_ID' => $customer->C_ID,
+            'account_type' => 'Personal',
+            'A_Balance' => 0,
+            'Operating_Date' => now()->toDateString(),
+        ]);
+
+        return [$customer, $account];
     }
 }

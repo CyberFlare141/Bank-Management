@@ -86,12 +86,6 @@
             margin-bottom: 22px;
         }
 
-        .admin-nav {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
         .admin-nav-btn {
             display: inline-flex;
             align-items: center;
@@ -301,6 +295,14 @@
 
         .btn-action.accept:hover { background: rgba(56, 189, 248, 0.22); }
 
+        .btn-action.view {
+            background: rgba(148, 163, 184, 0.08);
+            border-color: rgba(148, 163, 184, 0.22);
+            color: #cbd5e0;
+        }
+
+        .btn-action.view:hover { background: rgba(148, 163, 184, 0.14); }
+
         .btn-action.reject {
             background: rgba(248, 113, 113, 0.09);
             border-color: rgba(248, 113, 113, 0.3);
@@ -317,6 +319,110 @@
             font-size: 13px;
             text-align: center;
         }
+
+        .admin-modal[hidden] { display: none; }
+
+        .admin-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(15, 22, 35, 0.75);
+            backdrop-filter: blur(6px);
+        }
+
+        .admin-modal-panel {
+            width: min(760px, 100%);
+            max-height: 85vh;
+            overflow-y: auto;
+            background: #161d2e;
+            border: 1px solid #1e2d45;
+            border-radius: 16px;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+        }
+
+        .admin-modal-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 20px 22px 14px;
+            border-bottom: 1px solid #1e2d45;
+        }
+
+        .admin-modal-head h3 {
+            font-size: 18px;
+            font-weight: 800;
+            color: #f1f5f9;
+        }
+
+        .admin-modal-head p {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .admin-modal-close {
+            border: 1px solid #1e2d45;
+            background: #0f1623;
+            color: #cbd5e0;
+            border-radius: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .admin-modal-body {
+            padding: 18px 22px 22px;
+        }
+
+        .admin-modal-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .admin-modal-item {
+            background: #0f1623;
+            border: 1px solid #1e2d45;
+            border-radius: 12px;
+            padding: 12px 14px;
+        }
+
+        .admin-modal-item.wide {
+            grid-column: 1 / -1;
+        }
+
+        .admin-modal-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #475569;
+        }
+
+        .admin-modal-value {
+            font-size: 13px;
+            color: #e2e8f0;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        @media (max-width: 700px) {
+            .admin-modal-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .admin-modal-item.wide {
+                grid-column: auto;
+            }
+        }
     </style>
 
     <div class="mars-admin">
@@ -328,16 +434,6 @@
                 $adminUnreadNotifications = auth()->user()->unreadNotifications()->count();
             @endphp
             <div class="admin-topbar">
-                <div class="admin-nav">
-                    <a href="{{ route('home') }}" class="admin-nav-btn">Home</a>
-                    <a href="{{ route('personal.dashboard') }}" class="admin-nav-btn">Personal Dashboard</a>
-                    <a href="{{ route('personal.cards') }}" class="admin-nav-btn">Cards</a>
-                    <a href="{{ route('personal.loan') }}" class="admin-nav-btn">Loans</a>
-                    <a href="{{ route('about') }}" class="admin-nav-btn">About Us</a>
-                    <a href="{{ route('contact.create') }}" class="admin-nav-btn">Contact</a>
-                    <a href="{{ route('profile.edit') }}" class="admin-nav-btn">Profile</a>
-                    <a href="{{ route('admin.dashboard') }}" class="admin-nav-btn primary">Admin Dashboard</a>
-                </div>
                 <div class="admin-topbar-right">
                     <button type="button" onclick="history.back()" class="admin-nav-btn">Back</button>
                     <a
@@ -478,6 +574,32 @@
                             </thead>
                             <tbody>
                                 @foreach ($pendingCardApplications as $application)
+                                    @php
+                                        $applicationPayload = base64_encode(json_encode([
+                                            'application_id' => $application->application_id,
+                                            'customer_id' => $application->C_ID,
+                                            'branch_id' => $application->B_ID,
+                                            'branch_name' => $application->branch_name,
+                                            'card_category' => ucfirst($application->card_category),
+                                            'card_network' => $application->card_network,
+                                            'card_design' => $application->card_design,
+                                            'delivery_method' => $application->delivery_method,
+                                            'full_name' => $application->full_name,
+                                            'date_of_birth' => optional($application->date_of_birth)->format('M d, Y') ?: $application->date_of_birth,
+                                            'national_id_passport' => $application->national_id_passport,
+                                            'contact_number' => $application->contact_number,
+                                            'email_address' => $application->email_address,
+                                            'residential_address' => $application->residential_address,
+                                            'existing_account_number' => $application->existing_account_number,
+                                            'account_type' => $application->account_type,
+                                            'occupation' => $application->occupation,
+                                            'employer_name' => $application->employer_name,
+                                            'monthly_income' => $application->monthly_income !== null ? 'Tk ' . number_format((float) $application->monthly_income, 2) : null,
+                                            'source_of_income' => $application->source_of_income,
+                                            'status' => $application->status,
+                                            'submitted_at' => optional($application->created_at)->format('M d, Y h:i A'),
+                                        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                                    @endphp
                                     <tr>
                                         <td>{{ $application->application_id }}</td>
                                         <td>{{ $application->C_ID }}</td>
@@ -485,6 +607,14 @@
                                         <td>{{ $application->card_network }}</td>
                                         <td>
                                             <div class="actions">
+                                                <button
+                                                    type="button"
+                                                    class="btn-action view"
+                                                    data-application="{{ $applicationPayload }}"
+                                                    onclick="openCardApplicationModal(this.dataset.application)"
+                                                >
+                                                    View
+                                                </button>
                                                 <form method="POST" action="{{ route('admin.cards.accept', $application) }}">
                                                     @csrf
                                                     <button type="submit" class="btn-action accept">Accept</button>
@@ -504,4 +634,108 @@
             </section>
         </div>
     </div>
+
+    <div id="card-application-modal" class="admin-modal" hidden>
+        <div class="admin-modal-panel">
+            <div class="admin-modal-head">
+                <div>
+                    <h3>Card Application Details</h3>
+                    <p>Review the submitted customer information before taking action.</p>
+                </div>
+                <button type="button" class="admin-modal-close" onclick="closeCardApplicationModal()">Close</button>
+            </div>
+            <div class="admin-modal-body">
+                <div class="admin-modal-grid">
+                    <div class="admin-modal-item"><span class="admin-modal-label">Application ID</span><div id="modal-application_id" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Status</span><div id="modal-status" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Customer ID</span><div id="modal-customer_id" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Submitted At</span><div id="modal-submitted_at" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Card Type</span><div id="modal-card_category" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Network</span><div id="modal-card_network" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Card Design</span><div id="modal-card_design" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Delivery Method</span><div id="modal-delivery_method" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Full Name</span><div id="modal-full_name" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Date of Birth</span><div id="modal-date_of_birth" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">National ID / Passport</span><div id="modal-national_id_passport" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Contact Number</span><div id="modal-contact_number" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Email Address</span><div id="modal-email_address" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Existing Account Number</span><div id="modal-existing_account_number" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Account Type</span><div id="modal-account_type" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Branch</span><div id="modal-branch_name" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Branch ID</span><div id="modal-branch_id" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Occupation</span><div id="modal-occupation" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Employer Name</span><div id="modal-employer_name" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Monthly Income</span><div id="modal-monthly_income" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Source of Income</span><div id="modal-source_of_income" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item wide"><span class="admin-modal-label">Residential Address</span><div id="modal-residential_address" class="admin-modal-value">-</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const cardApplicationModalFields = [
+            'application_id',
+            'status',
+            'customer_id',
+            'submitted_at',
+            'card_category',
+            'card_network',
+            'card_design',
+            'delivery_method',
+            'full_name',
+            'date_of_birth',
+            'national_id_passport',
+            'contact_number',
+            'email_address',
+            'existing_account_number',
+            'account_type',
+            'branch_name',
+            'branch_id',
+            'occupation',
+            'employer_name',
+            'monthly_income',
+            'source_of_income',
+            'residential_address',
+        ];
+
+        function openCardApplicationModal(encodedApplication) {
+            const modal = document.getElementById('card-application-modal');
+            const application = JSON.parse(atob(encodedApplication));
+
+            cardApplicationModalFields.forEach((field) => {
+                const element = document.getElementById(`modal-${field}`);
+                if (!element) {
+                    return;
+                }
+
+                const value = application[field];
+                element.textContent = value !== null && value !== undefined && value !== '' ? value : '-';
+            });
+
+            modal.hidden = false;
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeCardApplicationModal() {
+            const modal = document.getElementById('card-application-modal');
+            modal.hidden = true;
+            document.body.style.overflow = '';
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                const modal = document.getElementById('card-application-modal');
+                if (modal && !modal.hidden) {
+                    closeCardApplicationModal();
+                }
+            }
+        });
+
+        document.getElementById('card-application-modal')?.addEventListener('click', (event) => {
+            if (event.target.id === 'card-application-modal') {
+                closeCardApplicationModal();
+            }
+        });
+    </script>
 </x-app-layout>

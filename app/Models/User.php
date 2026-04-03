@@ -121,9 +121,7 @@ class User extends Authenticatable implements JWTSubject
 
     public function isAdminUser(): bool
     {
-        $adminEmail = trim((string) env('ADMIN_EMAIL', ''));
-
-        return (bool) $this->is_admin || ($adminEmail !== '' && strcasecmp((string) $this->email, $adminEmail) === 0);
+        return (bool) $this->is_admin;
     }
 
     protected function casts(): array

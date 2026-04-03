@@ -7,8 +7,14 @@
             @csrf
 
             <div>
+                <x-input-label for="account_number" :value="__('Account Number')" />
+                <x-text-input id="account_number" class="mt-1 block w-full" type="text" name="account_number" :value="old('account_number')" required autofocus />
+                <x-input-error :messages="$errors->get('account_number')" class="mt-2" />
+            </div>
+
+            <div>
                 <x-input-label for="email" :value="__('Email')" />
-                <x-text-input id="email" class="mt-1 block w-full" type="email" name="email" :value="old('email')" required autofocus />
+                <x-text-input id="email" class="mt-1 block w-full" type="email" name="email" :value="old('email')" required />
                 <x-input-error :messages="$errors->get('email')" class="mt-2" />
             </div>
 
