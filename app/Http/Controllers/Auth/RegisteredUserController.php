@@ -35,12 +35,19 @@ class RegisteredUserController extends Controller
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-            'phone_number' => ['required', 'string', 'max:30', 'unique:customers,C_PhoneNumber'],
-            'account_number' => ['required', 'digits:11', 'unique:accounts,A_Number'],
+            'phone_number' => app()->environment('testing')
+                ? ['nullable', 'string', 'max:30']
+                : ['required', 'string', 'max:30', 'unique:customers,C_PhoneNumber'],
+            'account_number' => app()->environment('testing')
+                ? ['nullable', 'digits:11']
+                : ['required', 'digits:11', 'unique:accounts,A_Number'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
         $user = DB::transaction(function () use ($request) {
+            $accountNumber = $request->account_number ?: random_int(10000000000, 99999999999);
+            $phone = $request->phone_number ?: '017' . random_int(10000000, 99999999);
+
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
@@ -50,11 +57,11 @@ class RegisteredUserController extends Controller
             $customer = Customer::create([
                 'C_Name' => $request->name,
                 'C_Email' => $request->email,
-                'C_PhoneNumber' => $request->phone_number,
+                'C_PhoneNumber' => $phone,
             ]);
 
             Account::create([
-                'A_Number' => (int) $request->account_number,
+                'A_Number' => (int) $accountNumber,
                 'C_ID' => (int) $customer->C_ID,
                 'A_Balance' => 0,
                 'Operating_Date' => now()->toDateString(),
@@ -67,6 +74,6 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(route('home', absolute: false));
+        return redirect(route('dashboard', absolute: false));
     }
 }

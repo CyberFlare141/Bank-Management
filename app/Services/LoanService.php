@@ -127,10 +127,10 @@ class LoanService
 
                 $newLoanId = (int) DB::getPdo()->lastInsertId();
 
-                DB::insert(
-                    'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
-                    [$accountNumber, $customerId, 'loan_disbursement', (float) $lockedRequest->requested_amount]
+               DB::insert(
+                   'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
+                    [$accountNumber, $customerId, 'Loan Disbursement', (float) $lockedRequest->requested_amount]
                 );
 
                 DB::update(
@@ -303,7 +303,7 @@ class LoanService
             DB::insert(
                 'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                  VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
-                [$accountNumber, $customerId, 'loan_repayment', $appliedRepayment]
+                [$accountNumber, $customerId, 'Loan Repayment', $appliedRepayment]
             );
 
             return [
