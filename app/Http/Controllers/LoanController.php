@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Notifications\BankingNotification;
 use App\Services\AccountService;
+use App\Services\AuditLogService;
 use App\Services\LoanService;
 use App\Models\LoanRequest;
 use App\Models\Branch;
@@ -26,7 +27,8 @@ class LoanController extends Controller
 
     public function __construct(
         private readonly LoanService $loanService,
-        private readonly AccountService $accountService
+        private readonly AccountService $accountService,
+        private readonly AuditLogService $auditLogService
     ) {
     }
 
@@ -105,17 +107,36 @@ class LoanController extends Controller
         $user = auth()->user();
         $context = $this->accountService->getUserBankingContext((string) $user->email);
         if (!$context || !$context->A_Number) {
+            $this->auditLogService->log('loan_request', 'failed', [
+                'user_id' => (int) $user->id,
+                'message' => 'Customer profile or account is missing.',
+                'request_payload' => $validated,
+            ], $request);
             return response()->json([
                 'message' => 'Customer profile or account is missing. Please complete your profile and create an account first.',
             ], 422);
         }
 
         if (!Hash::check((string) $validated['password'], (string) $user->password)) {
+            $this->auditLogService->log('loan_request', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => 'Incorrect account password.',
+                'request_payload' => $validated,
+            ], $request);
             return response()->json(['message' => 'Incorrect account password.'], 422);
         }
 
         $otpEmail = $this->resolveOtpEmail((string) $user->email);
         if ($otpEmail === '') {
+            $this->auditLogService->log('loan_request', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => 'No registered email found for this user.',
+                'request_payload' => $validated,
+            ], $request);
             return response()->json([
                 'message' => 'No registered email found for this user. Please update your profile email first.',
             ], 422);
@@ -125,10 +146,24 @@ class LoanController extends Controller
         $branchId = $this->loanService->resolveBranchIdForLoan((string) $user->email);
 
         if (!$branchId) {
+            $this->auditLogService->log('loan_request', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => 'No branch is available to issue a loan.',
+                'request_payload' => $validated,
+            ], $request);
             return response()->json(['message' => 'No branch is available to issue a loan.'], 422);
         }
 
         if ($this->loanService->hasOutstandingLoan((int) $context->C_ID)) {
+            $this->auditLogService->log('loan_request', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => 'Outstanding loan exists.',
+                'request_payload' => $validated,
+            ], $request);
             return response()->json([
                 'message' => 'You already have an unpaid loan. Repay it before requesting a new loan.',
             ], 422);
@@ -153,8 +188,29 @@ class LoanController extends Controller
                 'user_id' => (int) $user->id,
                 'error' => $e->getMessage(),
             ]);
+            $this->auditLogService->log('loan_request', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'message' => $e->getMessage(),
+                'request_payload' => $validated,
+            ], $request);
             return response()->json(['message' => 'Failed to send OTP. Please try again.'], 500);
         }
+
+        $this->auditLogService->log('loan_request', 'pending', [
+            'user_id' => (int) $user->id,
+            'customer_id' => (int) $context->C_ID,
+            'account_number' => (int) $context->A_Number,
+            'entity_type' => 'loan_otp',
+            'message' => 'Loan request initiated and OTP sent.',
+            'request_payload' => $validated,
+            'response_payload' => [
+                'masked_email' => $this->maskEmail($otpEmail),
+                'requested_amount' => $requestedAmount,
+                'branch_id' => $branchId,
+            ],
+        ], $request);
 
         return response()->json([
             'message' => 'OTP sent to your registered email.',
@@ -174,17 +230,36 @@ class LoanController extends Controller
         $payload = Cache::get($cacheKey);
 
         if (!$payload) {
+            $this->auditLogService->log('loan_otp_verification', 'failed', [
+                'user_id' => (int) $user->id,
+                'message' => 'OTP session expired.',
+                'request_payload' => $validated,
+            ], $request);
             return response()->json(['message' => 'OTP session expired. Please start again.'], 422);
         }
 
         if (now()->timestamp > (int) $payload['expires_at']) {
             Cache::forget($cacheKey);
+            $this->auditLogService->log('loan_otp_verification', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) ($payload['customer_id'] ?? 0),
+                'account_number' => (int) ($payload['account_number'] ?? 0),
+                'message' => 'OTP expired.',
+                'request_payload' => $validated,
+            ], $request);
             return response()->json(['message' => 'OTP expired. Please request a new OTP.'], 422);
         }
 
         $attemptsLeft = (int) ($payload['attempts_left'] ?? 0);
         if ($attemptsLeft <= 0) {
             Cache::forget($cacheKey);
+            $this->auditLogService->log('loan_otp_verification', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) ($payload['customer_id'] ?? 0),
+                'account_number' => (int) ($payload['account_number'] ?? 0),
+                'message' => 'Maximum OTP attempts reached.',
+                'request_payload' => $validated,
+            ], $request);
             return response()->json(['message' => 'Maximum OTP attempts reached. Please start again.'], 429);
         }
 
@@ -194,10 +269,25 @@ class LoanController extends Controller
 
             if ($remaining <= 0) {
                 Cache::forget($cacheKey);
+                $this->auditLogService->log('loan_otp_verification', 'failed', [
+                    'user_id' => (int) $user->id,
+                    'customer_id' => (int) ($payload['customer_id'] ?? 0),
+                    'account_number' => (int) ($payload['account_number'] ?? 0),
+                    'message' => 'Invalid OTP. Maximum attempts reached.',
+                    'request_payload' => $validated,
+                ], $request);
                 return response()->json(['message' => 'Invalid OTP. Maximum attempts reached.'], 429);
             }
 
             Cache::put($cacheKey, $payload, now()->setTimestamp((int) $payload['expires_at']));
+            $this->auditLogService->log('loan_otp_verification', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) ($payload['customer_id'] ?? 0),
+                'account_number' => (int) ($payload['account_number'] ?? 0),
+                'message' => 'Invalid OTP.',
+                'request_payload' => $validated,
+                'response_payload' => ['attempts_remaining' => $remaining],
+            ], $request);
             return response()->json([
                 'message' => 'Invalid OTP.',
                 'attempts_remaining' => $remaining,
@@ -206,6 +296,13 @@ class LoanController extends Controller
 
         $lock = Cache::lock('loan-disbursement-user-' . (int) $user->id, 10);
         if (!$lock->get()) {
+            $this->auditLogService->log('loan_otp_verification', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) ($payload['customer_id'] ?? 0),
+                'account_number' => (int) ($payload['account_number'] ?? 0),
+                'message' => 'Loan request is already being processed.',
+                'request_payload' => $validated,
+            ], $request);
             return response()->json([
                 'message' => 'A loan request is already being processed. Please wait.',
             ], 429);
@@ -227,9 +324,28 @@ class LoanController extends Controller
             ));
 
             Cache::forget($cacheKey);
+            $this->auditLogService->log('loan_otp_verification', 'success', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $payload['customer_id'],
+                'account_number' => (int) $payload['account_number'],
+                'entity_type' => 'loan',
+                'message' => 'Loan approved and disbursed successfully.',
+                'request_payload' => $validated,
+                'response_payload' => [
+                    'requested_amount' => (float) $payload['requested_amount'],
+                    'branch_id' => (int) $payload['branch_id'],
+                ],
+            ], $request);
             return response()->json(['message' => 'Loan approved and disbursed successfully.']);
         } catch (ValidationException $e) {
             Cache::forget($cacheKey);
+            $this->auditLogService->log('loan_otp_verification', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) ($payload['customer_id'] ?? 0),
+                'account_number' => (int) ($payload['account_number'] ?? 0),
+                'message' => $e->validator->errors()->first() ?: 'Unable to complete loan disbursement.',
+                'request_payload' => $validated,
+            ], $request);
             return response()->json([
                 'message' => $e->validator->errors()->first() ?: 'Unable to complete loan disbursement.',
             ], 422);
@@ -238,6 +354,13 @@ class LoanController extends Controller
                 'user_id' => (int) $user->id,
                 'error' => $e->getMessage(),
             ]);
+            $this->auditLogService->log('loan_otp_verification', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) ($payload['customer_id'] ?? 0),
+                'account_number' => (int) ($payload['account_number'] ?? 0),
+                'message' => $e->getMessage(),
+                'request_payload' => $validated,
+            ], $request);
             return response()->json([
                 'message' => 'Unable to complete loan disbursement. Please try again.',
             ], 500);
@@ -251,6 +374,11 @@ class LoanController extends Controller
         $user = auth()->user();
         $context = $this->accountService->getUserBankingContext((string) $user->email);
         if (!$context || !$context->A_Number) {
+            $this->auditLogService->log('loan_repayment', 'failed', [
+                'user_id' => (int) $user->id,
+                'message' => 'Customer profile or account is missing.',
+                'request_payload' => $validated,
+            ], $request);
             return back()->with('loan_error', 'Customer profile or account is missing. Please complete your profile and create an account first.');
         }
 
@@ -293,12 +421,30 @@ class LoanController extends Controller
                 (float) $validated['repayment_amount']
             );
         } catch (ValidationException $e) {
+            $this->auditLogService->log('loan_repayment', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'entity_type' => 'loan',
+                'entity_id' => (string) $validated['loan_id'],
+                'message' => $e->validator->errors()->first() ?: 'Repayment failed.',
+                'request_payload' => $validated,
+            ], $request);
             return back()->with('loan_error', $e->validator->errors()->first() ?: 'Repayment failed.');
         } catch (\Throwable $e) {
             Log::error('Loan repayment failed.', [
                 'user_id' => (int) $user->id,
                 'error' => $e->getMessage(),
             ]);
+            $this->auditLogService->log('loan_repayment', 'failed', [
+                'user_id' => (int) $user->id,
+                'customer_id' => (int) $context->C_ID,
+                'account_number' => (int) $context->A_Number,
+                'entity_type' => 'loan',
+                'entity_id' => (string) $validated['loan_id'],
+                'message' => $e->getMessage(),
+                'request_payload' => $validated,
+            ], $request);
             return back()->with('loan_error', 'Repayment failed. Please try again.');
         }
 
@@ -312,6 +458,17 @@ class LoanController extends Controller
             'info',
             'personal.loan'
         ));
+
+        $this->auditLogService->log('loan_repayment', 'success', [
+            'user_id' => (int) $user->id,
+            'customer_id' => (int) $context->C_ID,
+            'account_number' => (int) $context->A_Number,
+            'entity_type' => 'loan',
+            'entity_id' => (string) $validated['loan_id'],
+            'message' => 'Loan repayment processed successfully.',
+            'request_payload' => $validated,
+            'response_payload' => $result,
+        ], $request);
 
         return back()->with('loan_success', $message);
     }
