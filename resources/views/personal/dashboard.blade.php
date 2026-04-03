@@ -844,17 +844,16 @@
             </div>
 
             @if(session('quick_action_success'))
-                <div class="mars-flash mars-flash-success">{{ session('quick_action_success') }}</div>
+                <div
+                    x-data="{ show: true }"
+                    x-init="setTimeout(() => show = false, 5000)"
+                    x-show="show"
+                    x-transition.opacity.duration.400ms
+                    class="mars-flash mars-flash-success"
+                >{{ session('quick_action_success') }}</div>
             @endif
             @if(session('quick_action_error'))
                 <div class="mars-flash mars-flash-error">{{ session('quick_action_error') }}</div>
-            @endif
-            @if($applicationNotifications->isNotEmpty())
-                @foreach($applicationNotifications as $notification)
-                    <div class="mars-flash mars-flash-success">
-                        {{ $notification->data['title'] ?? 'Application Update' }}: {{ $notification->data['message'] ?? 'Your application status has been updated.' }}
-                    </div>
-                @endforeach
             @endif
             @if($quickActionReceipt)
                 <div class="mars-receipt">
