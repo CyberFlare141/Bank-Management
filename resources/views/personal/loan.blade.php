@@ -1028,7 +1028,7 @@
                                 <input id="repayment_amount" name="repayment_amount" type="number" min="0.01" step="0.01" value="{{ old('repayment_amount') }}" required class="mars-input" placeholder="0.00">
                             </div>
                             <button type="submit" class="mars-btn mars-btn-gold">
-                                <span>💳</span> Submit Repayment
+                                <span>💳</span> Request Repayment Approval
                             </button>
                         </form>
                     @endif
@@ -1058,6 +1058,7 @@
                             <thead>
                                 <tr>
                                     <th>Request ID</th>
+                                    <th>Type</th>
                                     <th>Amount</th>
                                     <th>Status</th>
                                     <th>Requested</th>
@@ -1072,6 +1073,7 @@
                                     @endphp
                                     <tr>
                                         <td style="color:#7ec8f7;font-weight:600">#{{ $loanRequest->LR_ID }}</td>
+                                        <td style="color:var(--muted)">{{ ($loanRequest->request_type ?? 'loan_request') === 'repayment_request' ? 'Repayment' : 'Loan' }}</td>
                                         <td style="font-weight:600">Tk {{ number_format((float)$loanRequest->requested_amount, 2) }}</td>
                                         <td>
                                             <span class="mars-pill pill-{{ in_array($st,['processing','accepted','rejected'],true) ? $st : 'processing' }}">
@@ -1148,7 +1150,7 @@
         <div class="mars-modal">
             <div class="mars-modal-icon">🔐</div>
             <h3>Confirm Password</h3>
-            <p>Enter your account password to proceed with the loan request.</p>
+            <p>Enter your account password to submit a loan request for admin approval.</p>
             <div class="mars-field" style="margin-top:1rem">
                 <label for="loan_password">Account Password</label>
                 <input id="loan_password" type="password" class="mars-input" placeholder="••••••••" autocomplete="current-password">
@@ -1305,7 +1307,7 @@
                 closeModal(pwModal);
                 otpInput.value = '';
                 clearErr(otpError);
-                otpHint.textContent = `Enter the 6-digit OTP sent to ${data.masked_email}. Expires in 5 minutes.`;
+                otpHint.textContent = `Enter the 6-digit OTP sent to ${data.masked_email}. Your request will move to admin review after verification.`;
                 openModal(otpModal);
                 setTimeout(() => otpInput.focus(), 50);
             } catch(e) { showErr(pwError, 'Network error. Please try again.'); }
@@ -1344,5 +1346,7 @@
     })();
     </script>
 </x-app-layout>
+
+
 
 

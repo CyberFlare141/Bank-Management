@@ -383,7 +383,8 @@
 
         .input-shell:focus-within .field-icon { color: var(--gold-bright); }
 
-        .input-shell input {
+        .input-shell input,
+        .input-shell select {
             flex: 1;
             background: transparent;
             border: none;
@@ -396,6 +397,11 @@
         }
 
         .input-shell input::placeholder { color: rgba(106,135,170,0.45); }
+        .input-shell select option { color: #08101e; }
+        .input-shell input[type="file"] {
+            padding-top: 0.55rem;
+            padding-bottom: 0.55rem;
+        }
 
         /* Password strength */
         .pw-strength-wrap { margin-top: 0.4rem; }
@@ -670,7 +676,7 @@
                 <span class="is-active" role="tab" aria-selected="true">Register</span>
             </div>
 
-            <form method="POST" action="{{ route('register') }}" id="register-form">
+            <form method="POST" action="{{ route('register') }}" id="register-form" enctype="multipart/form-data">
                 @csrf
 
                 <div class="fields-grid">
@@ -727,6 +733,65 @@
                             <span id="acct-count" style="color:var(--gold-bright);font-weight:700">0</span>/11 digits
                         </div>
                         <x-input-error :messages="$errors->get('account_number')" class="field-error" />
+                    </div>
+
+                    <div class="field field-full">
+                        <label for="account_type">Account Type</label>
+                        <div class="input-shell">
+                            <span class="field-icon">⌘</span>
+                            <select id="account_type" name="account_type" required>
+                                <option value="">Select account type</option>
+                                <option value="normal" @selected(old('account_type') === 'normal')>Normal Account</option>
+                                <option value="student" @selected(old('account_type') === 'student')>Student Account</option>
+                            </select>
+                        </div>
+                        <div class="field-hint" id="account-type-hint">Normal account requires Job ID. Student account requires Student ID.</div>
+                        <x-input-error :messages="$errors->get('account_type')" class="field-error" />
+                    </div>
+
+                    <div class="field field-full">
+                        <label for="nid_or_birth_certificate">NID or Birth Certificate</label>
+                        <div class="input-shell">
+                            <span class="field-icon">🪪</span>
+                            <input id="nid_or_birth_certificate" type="file" name="nid_or_birth_certificate" accept=".jpg,.jpeg,.png,.webp,.pdf" required>
+                        </div>
+                        <x-input-error :messages="$errors->get('nid_or_birth_certificate')" class="field-error" />
+                    </div>
+
+                    <div class="field">
+                        <label for="photo">User Photo</label>
+                        <div class="input-shell">
+                            <span class="field-icon">📷</span>
+                            <input id="photo" type="file" name="photo" accept=".jpg,.jpeg,.png,.webp" required>
+                        </div>
+                        <x-input-error :messages="$errors->get('photo')" class="field-error" />
+                    </div>
+
+                    <div class="field">
+                        <label for="electric_bill">Electric Bill</label>
+                        <div class="input-shell">
+                            <span class="field-icon">⚡</span>
+                            <input id="electric_bill" type="file" name="electric_bill" accept=".jpg,.jpeg,.png,.webp,.pdf" required>
+                        </div>
+                        <x-input-error :messages="$errors->get('electric_bill')" class="field-error" />
+                    </div>
+
+                    <div class="field field-full" id="job-id-field">
+                        <label for="job_id">Job ID</label>
+                        <div class="input-shell">
+                            <span class="field-icon">💼</span>
+                            <input id="job_id" type="file" name="job_id" accept=".jpg,.jpeg,.png,.webp,.pdf">
+                        </div>
+                        <x-input-error :messages="$errors->get('job_id')" class="field-error" />
+                    </div>
+
+                    <div class="field field-full" id="student-id-field" style="display:none;">
+                        <label for="student_id">Student ID</label>
+                        <div class="input-shell">
+                            <span class="field-icon">🎓</span>
+                            <input id="student_id" type="file" name="student_id" accept=".jpg,.jpeg,.png,.webp,.pdf">
+                        </div>
+                        <x-input-error :messages="$errors->get('student_id')" class="field-error" />
                     </div>
 
                     <!-- Password -->
@@ -797,6 +862,43 @@
         acctCount.style.color = len === 11 ? 'var(--success)' : 'var(--gold-bright)';
         acctInput.value = acctInput.value.replace(/\D/g,'');
     });
+
+    const accountTypeInput = document.getElementById('account_type');
+    const jobIdField = document.getElementById('job-id-field');
+    const studentIdField = document.getElementById('student-id-field');
+    const jobIdInput = document.getElementById('job_id');
+    const studentIdInput = document.getElementById('student_id');
+    const accountTypeHint = document.getElementById('account-type-hint');
+
+    const updateAccountTypeFields = () => {
+        const accountType = accountTypeInput?.value;
+        const isStudent = accountType === 'student';
+
+        if (jobIdField) {
+            jobIdField.style.display = isStudent ? 'none' : '';
+        }
+
+        if (studentIdField) {
+            studentIdField.style.display = isStudent ? '' : 'none';
+        }
+
+        if (jobIdInput) {
+            jobIdInput.required = !isStudent;
+        }
+
+        if (studentIdInput) {
+            studentIdInput.required = isStudent;
+        }
+
+        if (accountTypeHint) {
+            accountTypeHint.textContent = isStudent
+                ? 'Student account requires Student ID instead of Job ID.'
+                : 'Normal account requires Job ID.';
+        }
+    };
+
+    accountTypeInput?.addEventListener('change', updateAccountTypeFields);
+    updateAccountTypeFields();
 
     // Password strength
     const pwInput = document.getElementById('password');

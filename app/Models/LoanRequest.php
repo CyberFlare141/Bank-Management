@@ -13,10 +13,12 @@ class LoanRequest extends Model
         'C_ID',
         'B_ID',
         'requested_amount',
+        'request_type',
         'status',
         'decision_note',
         'processed_at',
         'approved_loan_id',
+        'target_loan_id',
     ];
 
     protected function casts(): array
@@ -35,5 +37,10 @@ class LoanRequest extends Model
     public function loan(): BelongsTo
     {
         return $this->belongsTo(Loan::class, 'approved_loan_id', 'L_ID');
+    }
+
+    public function targetLoan(): BelongsTo
+    {
+        return $this->belongsTo(Loan::class, 'target_loan_id', 'L_ID');
     }
 }

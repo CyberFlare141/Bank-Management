@@ -782,12 +782,12 @@
                     </div>
                     <div class="mars-action-label">Recharge</div>
                 </button>
-                <div class="mars-action">
+                <a href="{{ route('personal.statements') }}" class="mars-action" style="text-decoration:none;">
                     <div class="mars-action-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l3 3v15H6z"></path><path d="M9 13h6M9 17h4M9 9h6"></path></svg>
                     </div>
                     <div class="mars-action-label">Statements</div>
-                </div>
+                </a>
                 <a href="{{ route('personal.cards') }}" class="mars-action" style="text-decoration:none;">
                     <div class="mars-action-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path></svg>
@@ -1112,4 +1112,3 @@
         </div>
     </div>
 </x-app-layout>
-

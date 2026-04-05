@@ -27,6 +27,11 @@ class Customer extends Model
         return $this->hasOne(Account::class, 'C_ID');
     }
 
+    public function user(): HasOne
+    {
+        return $this->hasOne(User::class, 'email', 'C_Email');
+    }
+
     public function loans(): HasMany
     {
         return $this->hasMany(Loan::class, 'C_ID');
@@ -50,5 +55,10 @@ class Customer extends Model
     public function cardApplications(): HasMany
     {
         return $this->hasMany(CardApplication::class, 'C_ID');
+    }
+
+    public function fixedDeposits(): HasMany
+    {
+        return $this->hasMany(FixedDeposit::class, 'C_ID');
     }
 }

@@ -414,6 +414,30 @@
             word-break: break-word;
         }
 
+        .document-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .document-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #7dd3fc;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .document-link:hover {
+            color: #bae6fd;
+        }
+
+        .document-preview {
+            max-width: 220px;
+            border-radius: 12px;
+            border: 1px solid #1e2d45;
+        }
+
         @media (max-width: 700px) {
             .admin-modal-grid {
                 grid-template-columns: 1fr;
@@ -436,6 +460,7 @@
             <div class="admin-topbar">
                 <div class="admin-topbar-right">
                     <button type="button" onclick="history.back()" class="admin-nav-btn">Back</button>
+                    <a href="{{ route('admin.documents') }}" class="admin-nav-btn primary">Registration Documents</a>
                     <a
                         href="{{ route('personal.dashboard') }}"
                         class="admin-notif"
@@ -470,7 +495,7 @@
 
             <p class="page-eyebrow">Admin Control</p>
             <h1 class="page-title">Admin Dashboard</h1>
-            <p class="page-subtitle">Review and process loan and card application requests.</p>
+            <p class="page-subtitle">Review loan requests, repayment approvals, cards, and uploaded registration documents.</p>
 
             <div class="stats-strip">
                 <div class="stat-cell">
@@ -478,16 +503,16 @@
                     <div class="stat-cell-value teal">{{ $pendingLoanRequests->count() }}</div>
                 </div>
                 <div class="stat-cell">
+                    <div class="stat-cell-label">Pending Repayments</div>
+                    <div class="stat-cell-value teal">{{ $pendingRepaymentRequests->count() }}</div>
+                </div>
+                <div class="stat-cell">
+                    <div class="stat-cell-label">Documents Stored</div>
+                    <div class="stat-cell-value">{{ $documentCount }}</div>
+                </div>
+                <div class="stat-cell">
                     <div class="stat-cell-label">Pending Cards</div>
-                    <div class="stat-cell-value teal">{{ $pendingCardApplications->count() }}</div>
-                </div>
-                <div class="stat-cell">
-                    <div class="stat-cell-label">Total Pending</div>
-                    <div class="stat-cell-value">{{ $pendingLoanRequests->count() + $pendingCardApplications->count() }}</div>
-                </div>
-                <div class="stat-cell">
-                    <div class="stat-cell-label">Access Level</div>
-                    <div class="stat-cell-value green">Admin</div>
+                    <div class="stat-cell-value green">{{ $pendingCardApplications->count() }}</div>
                 </div>
             </div>
 
@@ -524,6 +549,21 @@
                             </thead>
                             <tbody>
                                 @foreach ($pendingLoanRequests as $request)
+                                    @php
+                                        $documentRecord = $request->customer?->user?->userDocument;
+                                        $loanPayload = base64_encode(json_encode([
+                                            'request_id' => $request->LR_ID,
+                                            'customer_id' => $request->C_ID,
+                                            'amount' => 'Tk ' . number_format((float) $request->requested_amount, 2),
+                                            'requested_at' => optional($request->created_at)->format('M d, Y h:i A'),
+                                            'account_type' => $documentRecord?->account_type ? ucfirst($documentRecord->account_type) : null,
+                                            'nid_or_birth_certificate_url' => $documentRecord?->nid_or_birth_certificate ? route('admin.user-documents.show', [$documentRecord, 'nid_or_birth_certificate']) : null,
+                                            'photo_url' => $documentRecord?->photo ? route('admin.user-documents.show', [$documentRecord, 'photo']) : null,
+                                            'job_id_url' => $documentRecord?->job_id ? route('admin.user-documents.show', [$documentRecord, 'job_id']) : null,
+                                            'student_id_url' => $documentRecord?->student_id ? route('admin.user-documents.show', [$documentRecord, 'student_id']) : null,
+                                            'electric_bill_url' => $documentRecord?->electric_bill ? route('admin.user-documents.show', [$documentRecord, 'electric_bill']) : null,
+                                        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                                    @endphp
                                     <tr>
                                         <td>#{{ $request->LR_ID }}</td>
                                         <td>{{ $request->C_ID }}</td>
@@ -531,11 +571,72 @@
                                         <td>{{ optional($request->created_at)->format('M d, Y h:i A') }}</td>
                                         <td>
                                             <div class="actions">
+                                                <button
+                                                    type="button"
+                                                    class="btn-action view"
+                                                    data-loan-request="{{ $loanPayload }}"
+                                                    onclick="openLoanRequestModal(this.dataset.loanRequest)"
+                                                >
+                                                    View
+                                                </button>
                                                 <form method="POST" action="{{ route('admin.loans.accept', $request) }}">
                                                     @csrf
                                                     <button type="submit" class="btn-action accept">Accept</button>
                                                 </form>
                                                 <form method="POST" action="{{ route('admin.loans.reject', $request) }}">
+                                                    @csrf
+                                                    <button type="submit" class="btn-action reject">Reject</button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </section>
+
+            <section class="mars-card accented">
+                <div class="card-section-head">
+                    <div>
+                        <h3>Repayment Requests</h3>
+                        <p>Approve repayments before money is deducted from the customer account.</p>
+                    </div>
+                    <div class="section-count">{{ $pendingRepaymentRequests->count() }} pending</div>
+                </div>
+
+                @if ($pendingRepaymentRequests->isEmpty())
+                    <div class="empty">No pending repayment requests.</div>
+                @else
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Customer</th>
+                                    <th>Loan</th>
+                                    <th>Amount</th>
+                                    <th>Requested At</th>
+                                    <th style="text-align:right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($pendingRepaymentRequests as $request)
+                                    <tr>
+                                        <td>#{{ $request->LR_ID }}</td>
+                                        <td>{{ $request->C_ID }}</td>
+                                        <td>#{{ $request->target_loan_id }}</td>
+                                        <td>Tk {{ number_format((float) $request->requested_amount, 2) }}</td>
+                                        <td>{{ optional($request->created_at)->format('M d, Y h:i A') }}</td>
+                                        <td>
+                                            <div class="actions">
+                                                <a href="{{ route('admin.documents') }}" class="btn-action view">Documents</a>
+                                                <form method="POST" action="{{ route('admin.repayments.accept', $request) }}">
+                                                    @csrf
+                                                    <button type="submit" class="btn-action accept">Accept</button>
+                                                </form>
+                                                <form method="POST" action="{{ route('admin.repayments.reject', $request) }}">
                                                     @csrf
                                                     <button type="submit" class="btn-action reject">Reject</button>
                                                 </form>
@@ -673,6 +774,37 @@
         </div>
     </div>
 
+    <div id="loan-request-modal" class="admin-modal" hidden>
+        <div class="admin-modal-panel">
+            <div class="admin-modal-head">
+                <div>
+                    <h3>Loan Request Documents</h3>
+                    <p>Review customer documents without changing the loan approval flow.</p>
+                </div>
+                <button type="button" class="admin-modal-close" onclick="closeLoanRequestModal()">Close</button>
+            </div>
+            <div class="admin-modal-body">
+                <div class="admin-modal-grid">
+                    <div class="admin-modal-item"><span class="admin-modal-label">Loan Request ID</span><div id="loan-modal-request_id" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Customer ID</span><div id="loan-modal-customer_id" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Requested Amount</span><div id="loan-modal-amount" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item"><span class="admin-modal-label">Requested At</span><div id="loan-modal-requested_at" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item wide"><span class="admin-modal-label">Account Type</span><div id="loan-modal-account_type" class="admin-modal-value">-</div></div>
+                    <div class="admin-modal-item wide">
+                        <span class="admin-modal-label">Uploaded Documents</span>
+                        <div class="document-list">
+                            <div id="loan-doc-photo-preview" class="admin-modal-value">-</div>
+                            <div id="loan-doc-nid_or_birth_certificate" class="admin-modal-value">-</div>
+                            <div id="loan-doc-job_id" class="admin-modal-value">-</div>
+                            <div id="loan-doc-student_id" class="admin-modal-value">-</div>
+                            <div id="loan-doc-electric_bill" class="admin-modal-value">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const cardApplicationModalFields = [
             'application_id',
@@ -723,18 +855,89 @@
             document.body.style.overflow = '';
         }
 
+        const loanRequestModalFields = [
+            'request_id',
+            'customer_id',
+            'amount',
+            'requested_at',
+            'account_type',
+        ];
+
+        function renderDocumentLink(containerId, url, label) {
+            const element = document.getElementById(containerId);
+            if (!element) {
+                return;
+            }
+
+            if (!url) {
+                element.textContent = `${label}: Not uploaded`;
+                return;
+            }
+
+            element.innerHTML = `<a class="document-link" href="${url}" target="_blank" rel="noopener">${label}</a>`;
+        }
+
+        function openLoanRequestModal(encodedLoanRequest) {
+            const modal = document.getElementById('loan-request-modal');
+            const loanRequest = JSON.parse(atob(encodedLoanRequest));
+
+            loanRequestModalFields.forEach((field) => {
+                const element = document.getElementById(`loan-modal-${field}`);
+                if (!element) {
+                    return;
+                }
+
+                const value = loanRequest[field];
+                element.textContent = value !== null && value !== undefined && value !== '' ? value : '-';
+            });
+
+            const photoPreview = document.getElementById('loan-doc-photo-preview');
+            if (photoPreview) {
+                if (loanRequest.photo_url) {
+                    photoPreview.innerHTML = `<div style="display:grid;gap:10px;"><img src="${loanRequest.photo_url}" alt="Customer photo" class="document-preview"><a class="document-link" href="${loanRequest.photo_url}" target="_blank" rel="noopener">User Photo</a></div>`;
+                } else {
+                    photoPreview.textContent = 'User Photo: Not uploaded';
+                }
+            }
+
+            renderDocumentLink('loan-doc-nid_or_birth_certificate', loanRequest.nid_or_birth_certificate_url, 'NID / Birth Certificate');
+            renderDocumentLink('loan-doc-job_id', loanRequest.job_id_url, 'Job ID');
+            renderDocumentLink('loan-doc-student_id', loanRequest.student_id_url, 'Student ID');
+            renderDocumentLink('loan-doc-electric_bill', loanRequest.electric_bill_url, 'Electric Bill');
+
+            modal.hidden = false;
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLoanRequestModal() {
+            const modal = document.getElementById('loan-request-modal');
+            modal.hidden = true;
+            document.body.style.overflow = '';
+        }
+
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
                 const modal = document.getElementById('card-application-modal');
                 if (modal && !modal.hidden) {
                     closeCardApplicationModal();
                 }
+
+                 const loanModal = document.getElementById('loan-request-modal');
+                 if (loanModal && !loanModal.hidden) {
+                    closeLoanRequestModal();
+                 }
             }
         });
 
         document.getElementById('card-application-modal')?.addEventListener('click', (event) => {
             if (event.target.id === 'card-application-modal') {
                 closeCardApplicationModal();
+            }
+        });
+
+        document.getElementById('loan-request-modal')?.addEventListener('click', (event) => {
+            if (event.target.id === 'loan-request-modal') {
+                closeLoanRequestModal();
             }
         });
     </script>

@@ -7,6 +7,7 @@ use App\Http\Controllers\CardController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\StatementController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,6 +41,8 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware(['auth', 'non_admin'])->group(function () {
     Route::get('/personal', [PersonalDashboardController::class, 'index'])->name('personal.dashboard');
+    Route::get('/personal/statements', [StatementController::class, 'index'])->name('personal.statements');
+    Route::get('/personal/statements/download', [StatementController::class, 'download'])->name('personal.statements.download');
     Route::get('/personal/cards', [CardController::class, 'index'])->name('personal.cards');
     Route::get('/personal/cards/apply/{cardType}', [CardController::class, 'create'])->name('personal.cards.create');
     Route::post('/personal/cards/apply/{cardType}', [CardController::class, 'store'])->name('personal.cards.store');
@@ -58,9 +61,13 @@ Route::middleware(['auth', 'non_admin'])->group(function () {
 
 Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/admin', [AdminController::class, 'dashboard'])->name('admin.dashboard');
+    Route::get('/admin/documents', [AdminController::class, 'documents'])->name('admin.documents');
+    Route::get('/admin/user-documents/{userDocument}/{documentType}', [AdminController::class, 'showUserDocument'])->name('admin.user-documents.show');
     Route::post('/admin/logout', [AdminController::class, 'logout'])->name('admin.logout');
     Route::post('/admin/loan-requests/{loanRequest}/accept', [AdminController::class, 'acceptLoanRequest'])->name('admin.loans.accept');
     Route::post('/admin/loan-requests/{loanRequest}/reject', [AdminController::class, 'rejectLoanRequest'])->name('admin.loans.reject');
+    Route::post('/admin/repayment-requests/{loanRequest}/accept', [AdminController::class, 'acceptRepaymentRequest'])->name('admin.repayments.accept');
+    Route::post('/admin/repayment-requests/{loanRequest}/reject', [AdminController::class, 'rejectRepaymentRequest'])->name('admin.repayments.reject');
     Route::post('/admin/card-applications/{cardApplication}/accept', [AdminController::class, 'acceptCardApplication'])->name('admin.cards.accept');
     Route::post('/admin/card-applications/{cardApplication}/reject', [AdminController::class, 'rejectCardApplication'])->name('admin.cards.reject');
 });

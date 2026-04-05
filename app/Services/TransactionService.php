@@ -47,13 +47,6 @@ class TransactionService
                 ]);
             }
 
-            DB::update(
-                'UPDATE accounts
-                 SET A_Balance = A_Balance - ?, updated_at = NOW()
-                 WHERE A_Number = ?',
-                [$normalizedAmount, (int) $sender->A_Number]
-            );
-
             DB::insert(
                 'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                  VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
@@ -61,13 +54,6 @@ class TransactionService
             );
 
             if ($internalRecipient) {
-                DB::update(
-                    'UPDATE accounts
-                     SET A_Balance = A_Balance + ?, updated_at = NOW()
-                     WHERE A_Number = ?',
-                    [$normalizedAmount, (int) $internalRecipient->A_Number]
-                );
-
                 DB::insert(
                     'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                      VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
@@ -145,13 +131,6 @@ class TransactionService
                 ]);
             }
 
-            DB::update(
-                'UPDATE accounts
-                 SET A_Balance = A_Balance - ?, updated_at = NOW()
-                 WHERE A_Number = ?',
-                [$normalizedAmount, (int) $sender->A_Number]
-            );
-
             DB::insert(
                 'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                  VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
@@ -219,26 +198,13 @@ class TransactionService
                 ]);
             }
 
-            if ($this->hasInsufficientBalance((float) $sender->A_Balance, $normalizedAmount)) {
-                throw ValidationException::withMessages([
-                    'recharge' => 'Insufficient balance for this recharge.',
-                ]);
-            }
-
-            DB::update(
-                'UPDATE accounts
-                 SET A_Balance = A_Balance - ?, updated_at = NOW()
-                 WHERE A_Number = ?',
-                [$normalizedAmount, (int) $sender->A_Number]
-            );
-
             DB::insert(
                 'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
                  VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
                 [
                     (int) $sender->A_Number,
                     $customerId,
-                    'Recharge - ' . $rechargeApp . ' (' . $recipient . ')',
+                    'Recharge Received - ' . $rechargeApp . ' (' . $recipient . ')',
                     $normalizedAmount,
                 ]
             );

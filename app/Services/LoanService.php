@@ -10,8 +10,6 @@ class LoanService
 {
     private const MONTHLY_INTEREST_ELIGIBLE_MAX_AMOUNT = 30000;
     private const MONTHLY_INTEREST_RATE = 0.09;
-    private const PROCESSING_DELAY_SECONDS = 10;
-
     public function approvedLoanTotalsByBranch(): array
     {
         return DB::select(
@@ -50,97 +48,51 @@ class LoanService
         );
     }
 
-    public function processPendingLoanRequests(int $customerId, int $accountNumber): void
+    public function submitLoanRequest(int $customerId, int $branchId, float $requestedAmount): void
     {
-        $pendingRequests = DB::select(
-            'SELECT LR_ID, B_ID, requested_amount
-             FROM loan_requests
-             WHERE C_ID = ?
-               AND status = ?
-               AND created_at <= ?
-             ORDER BY created_at ASC',
-            [
-                $customerId,
-                'processing',
-                now()->subSeconds(self::PROCESSING_DELAY_SECONDS),
-            ]
-        );
+        $this->runSerializableTransaction(function () use ($customerId, $branchId, $requestedAmount): void {
+            DB::selectOne(
+                'SELECT C_ID FROM customers WHERE C_ID = ? FOR UPDATE',
+                [$customerId]
+            );
 
-        foreach ($pendingRequests as $loanRequest) {
-            $this->runSerializableTransaction(function () use ($loanRequest, $customerId, $accountNumber): void {
-                $lockedRequest = DB::selectOne(
-                    'SELECT LR_ID, B_ID, requested_amount, status
-                     FROM loan_requests
-                     WHERE LR_ID = ?
-                     FOR UPDATE',
-                    [(int) $loanRequest->LR_ID]
-                );
+            if ($this->hasOutstandingLoan($customerId, true)) {
+                throw ValidationException::withMessages([
+                    'loan' => 'You already have an unpaid loan. Repay it before requesting a new loan.',
+                ]);
+            }
 
-                if (!$lockedRequest || strtolower((string) $lockedRequest->status) !== 'processing') {
-                    return;
-                }
+            $pendingRequest = DB::selectOne(
+                'SELECT LR_ID
+                 FROM loan_requests
+                 WHERE C_ID = ?
+                   AND request_type = ?
+                   AND status = ?
+                 LIMIT 1
+                 FOR UPDATE',
+                [$customerId, 'loan_request', 'processing']
+            );
 
-                $lockedCustomer = DB::selectOne(
-                    'SELECT C_ID FROM customers WHERE C_ID = ? FOR UPDATE',
-                    [$customerId]
-                );
+            if ($pendingRequest) {
+                throw ValidationException::withMessages([
+                    'loan' => 'You already have a pending loan request awaiting admin approval.',
+                ]);
+            }
 
-                if (!$lockedCustomer || $this->hasOutstandingLoan($customerId, true)) {
-                    DB::update(
-                        'UPDATE loan_requests
-                         SET status = ?, decision_note = ?, processed_at = NOW(), updated_at = NOW()
-                         WHERE LR_ID = ?',
-                        ['rejected', 'Rejected because there is an existing unpaid loan.', (int) $lockedRequest->LR_ID]
-                    );
-                    return;
-                }
-
-                $lockedAccount = DB::selectOne(
-                    'SELECT A_Number FROM accounts WHERE A_Number = ? AND C_ID = ? FOR UPDATE',
-                    [$accountNumber, $customerId]
-                );
-
-                if (!$lockedAccount) {
-                    DB::update(
-                        'UPDATE loan_requests
-                         SET status = ?, decision_note = ?, processed_at = NOW(), updated_at = NOW()
-                         WHERE LR_ID = ?',
-                        ['rejected', 'Rejected because no valid account exists for this customer.', (int) $lockedRequest->LR_ID]
-                    );
-                    return;
-                }
-
-                DB::insert(
-                    'INSERT INTO loans
-                        (C_ID, B_ID, L_Type, L_Amount, remaining_amount, Interest_Rate, status, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
-                    [
-                        $customerId,
-                        (int) $lockedRequest->B_ID,
-                        'Instant Tk ' . number_format((float) $lockedRequest->requested_amount, 2) . ' Loan',
-                        (float) $lockedRequest->requested_amount,
-                        (float) $lockedRequest->requested_amount,
-                        0,
-                        'active',
-                    ]
-                );
-
-                $newLoanId = (int) DB::getPdo()->lastInsertId();
-
-               DB::insert(
-                   'INSERT INTO transactions (A_Number, C_ID, T_Type, T_Amount, T_Date, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, NOW(), NOW(), NOW())',
-                    [$accountNumber, $customerId, 'Loan Disbursement', (float) $lockedRequest->requested_amount]
-                );
-
-                DB::update(
-                    'UPDATE loan_requests
-                     SET status = ?, approved_loan_id = ?, decision_note = ?, processed_at = NOW(), updated_at = NOW()
-                     WHERE LR_ID = ?',
-                    ['accepted', $newLoanId, 'Accepted and disbursed to account.', (int) $lockedRequest->LR_ID]
-                );
-            });
-        }
+            DB::insert(
+                'INSERT INTO loan_requests
+                    (C_ID, B_ID, requested_amount, request_type, status, decision_note, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())',
+                [
+                    $customerId,
+                    $branchId,
+                    $requestedAmount,
+                    'loan_request',
+                    'processing',
+                    'Awaiting admin approval.',
+                ]
+            );
+        });
     }
 
     public function resolveBranchIdForLoan(string $customerEmail): ?int
@@ -211,17 +163,35 @@ class LoanService
         return $row !== null;
     }
 
-    public function disburseInstantLoan(int $customerId, int $accountNumber, int $branchId, float $requestedAmount): void
+    public function approveLoanRequest(int $loanRequestId): array
     {
-        $this->runSerializableTransaction(function () use ($customerId, $accountNumber, $branchId, $requestedAmount): void {
+        return $this->runSerializableTransaction(function () use ($loanRequestId): array {
+            $loanRequest = DB::selectOne(
+                'SELECT LR_ID, C_ID, B_ID, requested_amount, request_type, status
+                 FROM loan_requests
+                 WHERE LR_ID = ?
+                 FOR UPDATE',
+                [$loanRequestId]
+            );
+
+            if (!$loanRequest || (string) $loanRequest->request_type !== 'loan_request' || strtolower((string) $loanRequest->status) !== 'processing') {
+                throw ValidationException::withMessages([
+                    'loan' => 'This loan request is not eligible for approval.',
+                ]);
+            }
+
+            $customerId = (int) $loanRequest->C_ID;
+            $branchId = (int) $loanRequest->B_ID;
+            $requestedAmount = (float) $loanRequest->requested_amount;
+
             DB::selectOne(
                 'SELECT C_ID FROM customers WHERE C_ID = ? FOR UPDATE',
                 [$customerId]
             );
 
             $lockedAccount = DB::selectOne(
-                'SELECT A_Number FROM accounts WHERE A_Number = ? AND C_ID = ? FOR UPDATE',
-                [$accountNumber, $customerId]
+                'SELECT A_Number FROM accounts WHERE C_ID = ? ORDER BY A_Number ASC LIMIT 1 FOR UPDATE',
+                [$customerId]
             );
 
             if (!$lockedAccount) {
@@ -257,16 +227,89 @@ class LoanService
                 ['approved', $loanId]
             );
 
+            DB::update(
+                'UPDATE loan_requests
+                 SET status = ?, processed_at = NOW(), approved_loan_id = ?, decision_note = ?, updated_at = NOW()
+                 WHERE LR_ID = ?',
+                ['accepted', $loanId, 'Accepted by admin and disbursed to account.', $loanRequestId]
+            );
+
+            return [
+                'loan_id' => $loanId,
+                'requested_amount' => $requestedAmount,
+                'account_number' => (int) $lockedAccount->A_Number,
+            ];
+        });
+    }
+
+    public function submitRepaymentRequest(int $customerId, int $loanId, float $repaymentAmount): void
+    {
+        $this->runSerializableTransaction(function () use ($customerId, $loanId, $repaymentAmount): void {
+            $loan = DB::selectOne(
+                'SELECT L_ID, L_Amount, remaining_amount, status
+                 FROM loans
+                 WHERE L_ID = ? AND C_ID = ?
+                 FOR UPDATE',
+                [$loanId, $customerId]
+            );
+
+            if (!$loan) {
+                throw ValidationException::withMessages([
+                    'loan' => 'Selected loan was not found for this account.',
+                ]);
+            }
+
+            $this->applyMonthlyInterestToLoanId((int) $loan->L_ID);
+
+            $freshLoan = DB::selectOne(
+                'SELECT L_ID, L_Amount, remaining_amount FROM loans WHERE L_ID = ? FOR UPDATE',
+                [$loanId]
+            );
+
+            $rawRemaining = (float) ($freshLoan->remaining_amount ?? $freshLoan->L_Amount);
+            if ($rawRemaining <= 0) {
+                throw ValidationException::withMessages([
+                    'loan' => 'This loan is already fully paid.',
+                ]);
+            }
+
+            $pendingRequest = DB::selectOne(
+                'SELECT LR_ID
+                 FROM loan_requests
+                 WHERE C_ID = ?
+                   AND target_loan_id = ?
+                   AND request_type = ?
+                   AND status = ?
+                 LIMIT 1
+                 FOR UPDATE',
+                [$customerId, $loanId, 'repayment_request', 'processing']
+            );
+
+            if ($pendingRequest) {
+                throw ValidationException::withMessages([
+                    'loan' => 'There is already a pending repayment request for this loan.',
+                ]);
+            }
+
+            $branch = DB::selectOne(
+                'SELECT B_ID
+                 FROM loans
+                 WHERE L_ID = ?
+                 LIMIT 1',
+                [$loanId]
+            );
+
             DB::insert(
                 'INSERT INTO loan_requests
-                    (C_ID, B_ID, requested_amount, status, decision_note, processed_at, approved_loan_id, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, NOW(), ?, NOW(), NOW())',
+                    (C_ID, B_ID, requested_amount, request_type, status, decision_note, target_loan_id, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
                 [
                     $customerId,
-                    $branchId,
-                    $requestedAmount,
-                    'accepted',
-                    'Approved after password and OTP verification.',
+                    (int) ($branch->B_ID ?? 1),
+                    $repaymentAmount,
+                    'repayment_request',
+                    'processing',
+                    'Awaiting admin approval for repayment.',
                     $loanId,
                 ]
             );
@@ -383,57 +426,49 @@ class LoanService
         ];
     }
 
-    public function approveLoanRequest(int $loanRequestId): void
+    public function approveRepaymentRequest(int $loanRequestId): array
     {
-        $this->runSerializableTransaction(function () use ($loanRequestId): void {
+        return $this->runSerializableTransaction(function () use ($loanRequestId): array {
             $loanRequest = DB::selectOne(
-                'SELECT LR_ID, C_ID, B_ID, requested_amount, status
+                'SELECT LR_ID, C_ID, requested_amount, target_loan_id, request_type, status
                  FROM loan_requests
                  WHERE LR_ID = ?
                  FOR UPDATE',
                 [$loanRequestId]
             );
 
-            if (!$loanRequest || strtolower((string) $loanRequest->status) !== 'processing') {
-                throw new \RuntimeException('Loan request is not eligible for approval.');
+            if (!$loanRequest || (string) $loanRequest->request_type !== 'repayment_request' || strtolower((string) $loanRequest->status) !== 'processing') {
+                throw ValidationException::withMessages([
+                    'loan' => 'Repayment request is not eligible for approval.',
+                ]);
             }
 
             $account = DB::selectOne(
-                'SELECT A_Number FROM accounts WHERE C_ID = ? FOR UPDATE',
+                'SELECT A_Number FROM accounts WHERE C_ID = ? ORDER BY A_Number ASC LIMIT 1 FOR UPDATE',
                 [(int) $loanRequest->C_ID]
             );
 
             if (!$account) {
-                throw new \RuntimeException('No account found for this customer.');
+                throw ValidationException::withMessages([
+                    'loan' => 'No account found for this customer.',
+                ]);
             }
 
-            DB::insert(
-                'INSERT INTO loans
-                    (C_ID, B_ID, L_Type, L_Amount, remaining_amount, Interest_Rate, status, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
-                [
-                    (int) $loanRequest->C_ID,
-                    (int) $loanRequest->B_ID,
-                    'standard',
-                    (float) $loanRequest->requested_amount,
-                    (float) $loanRequest->requested_amount,
-                    9.00,
-                    'processing',
-                ]
-            );
-
-            $loanId = (int) DB::getPdo()->lastInsertId();
-            DB::update(
-                'UPDATE loans SET status = ?, updated_at = NOW() WHERE L_ID = ?',
-                ['approved', $loanId]
+            $result = $this->repayLoan(
+                (int) $loanRequest->C_ID,
+                (int) $account->A_Number,
+                (int) $loanRequest->target_loan_id,
+                (float) $loanRequest->requested_amount
             );
 
             DB::update(
                 'UPDATE loan_requests
-                 SET status = ?, processed_at = NOW(), approved_loan_id = ?, updated_at = NOW()
+                 SET status = ?, processed_at = NOW(), decision_note = ?, updated_at = NOW()
                  WHERE LR_ID = ?',
-                ['approved', $loanId, $loanRequestId]
+                ['accepted', 'Repayment approved and applied to the loan.', $loanRequestId]
             );
+
+            return $result;
         });
     }
 
