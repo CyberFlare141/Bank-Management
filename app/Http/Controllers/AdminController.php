@@ -7,19 +7,25 @@ use App\Models\CardApplication;
 use App\Models\Customer;
 use App\Models\Loan;
 use App\Models\LoanRequest;
+use App\Models\UserDocument;
 use App\Models\User;
 use App\Notifications\ApplicationStatusNotification;
+use App\Services\LoanService;
 use App\Services\UserBankingProfileService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminController extends Controller
 {
     public function __construct(
-        private readonly UserBankingProfileService $userBankingProfileService
+        private readonly UserBankingProfileService $userBankingProfileService,
+        private readonly LoanService $loanService
     ) {
     }
 
@@ -83,61 +89,38 @@ class AdminController extends Controller
     {
         return view('admin.dashboard', [
             'pendingLoanRequests' => LoanRequest::query()
+                ->with(['customer.user.userDocument'])
                 ->where('status', 'processing')
+                ->where('request_type', 'loan_request')
+                ->orderByDesc('created_at')
+                ->get(),
+            'pendingRepaymentRequests' => LoanRequest::query()
+                ->with(['customer.user.userDocument', 'targetLoan'])
+                ->where('status', 'processing')
+                ->where('request_type', 'repayment_request')
                 ->orderByDesc('created_at')
                 ->get(),
             'pendingCardApplications' => CardApplication::query()
                 ->where('status', 'pending_review')
                 ->orderByDesc('created_at')
                 ->get(),
+            'documentCount' => UserDocument::query()->count(),
         ]);
     }
 
     public function acceptLoanRequest(LoanRequest $loanRequest): RedirectResponse
     {
-        if ($loanRequest->status !== 'processing') {
+        if ($loanRequest->status !== 'processing' || $loanRequest->request_type !== 'loan_request') {
             return back()->with('admin_error', 'This loan request is already processed.');
         }
 
-        DB::transaction(function () use ($loanRequest): void {
-            $lockedRequest = LoanRequest::query()
-                ->whereKey($loanRequest->getKey())
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            if ($lockedRequest->status !== 'processing') {
-                return;
-            }
-
-            $account = Account::query()
-                ->where('C_ID', $lockedRequest->C_ID)
-                ->orderBy('A_Number')
-                ->lockForUpdate()
-                ->first();
-
-            if (!$account) {
-                throw new \RuntimeException('No account found for this customer.');
-            }
-
-            $loan = Loan::create([
-                'C_ID' => (int) $lockedRequest->C_ID,
-                'B_ID' => (int) $lockedRequest->B_ID,
-                'L_Type' => 'Admin Approved Loan',
-                'L_Amount' => (float) $lockedRequest->requested_amount,
-                'remaining_amount' => (float) $lockedRequest->requested_amount,
-                'Interest_Rate' => 0,
-                'status' => 'processing',
-            ]);
-
-            $loan->update(['status' => 'approved']);
-
-            $lockedRequest->update([
-                'status' => 'accepted',
-                'decision_note' => 'Accepted by admin and disbursed.',
-                'processed_at' => now(),
-                'approved_loan_id' => $loan->L_ID,
-            ]);
-        });
+        try {
+            $this->loanService->approveLoanRequest((int) $loanRequest->LR_ID);
+        } catch (ValidationException $e) {
+            return back()->with('admin_error', $e->validator->errors()->first() ?: 'Unable to approve this loan request.');
+        } catch (\Throwable $e) {
+            return back()->with('admin_error', 'Unable to approve this loan request.');
+        }
 
         $this->notifyCustomer(
             (int) $loanRequest->C_ID,
@@ -151,7 +134,7 @@ class AdminController extends Controller
 
     public function rejectLoanRequest(LoanRequest $loanRequest): RedirectResponse
     {
-        if ($loanRequest->status !== 'processing') {
+        if ($loanRequest->status !== 'processing' || $loanRequest->request_type !== 'loan_request') {
             return back()->with('admin_error', 'This loan request is already processed.');
         }
 
@@ -169,6 +152,56 @@ class AdminController extends Controller
         );
 
         return back()->with('admin_success', 'Loan request rejected successfully.');
+    }
+
+    public function acceptRepaymentRequest(LoanRequest $loanRequest): RedirectResponse
+    {
+        if ($loanRequest->status !== 'processing' || $loanRequest->request_type !== 'repayment_request') {
+            return back()->with('admin_error', 'This repayment request is already processed.');
+        }
+
+        try {
+            $result = $this->loanService->approveRepaymentRequest((int) $loanRequest->LR_ID);
+        } catch (ValidationException $e) {
+            return back()->with('admin_error', $e->validator->errors()->first() ?: 'Unable to approve this repayment request.');
+        } catch (\Throwable $e) {
+            return back()->with('admin_error', 'Unable to approve this repayment request.');
+        }
+
+        $message = ((float) $result['requested_repayment']) > ((float) $result['applied_repayment'])
+            ? 'Your repayment request #' . $loanRequest->LR_ID . ' was approved. Extra requested amount was not charged.'
+            : 'Your repayment request #' . $loanRequest->LR_ID . ' was approved and applied.';
+
+        $this->notifyCustomer(
+            (int) $loanRequest->C_ID,
+            'Loan Repayment Approved',
+            $message,
+            'personal.loan'
+        );
+
+        return back()->with('admin_success', 'Repayment request approved successfully.');
+    }
+
+    public function rejectRepaymentRequest(LoanRequest $loanRequest): RedirectResponse
+    {
+        if ($loanRequest->status !== 'processing' || $loanRequest->request_type !== 'repayment_request') {
+            return back()->with('admin_error', 'This repayment request is already processed.');
+        }
+
+        $loanRequest->update([
+            'status' => 'rejected',
+            'decision_note' => 'Repayment rejected by admin.',
+            'processed_at' => now(),
+        ]);
+
+        $this->notifyCustomer(
+            (int) $loanRequest->C_ID,
+            'Loan Repayment Rejected',
+            'Your repayment request #' . $loanRequest->LR_ID . ' has been rejected by admin.',
+            'personal.loan'
+        );
+
+        return back()->with('admin_success', 'Repayment request rejected successfully.');
     }
 
     public function acceptCardApplication(CardApplication $cardApplication): RedirectResponse
@@ -205,6 +238,38 @@ class AdminController extends Controller
         );
 
         return back()->with('admin_success', 'Card application rejected successfully.');
+    }
+
+    public function showUserDocument(UserDocument $userDocument, string $documentType): StreamedResponse
+    {
+        abort_unless(auth()->user()?->isAdminUser(), 403);
+
+        $allowedTypes = [
+            'nid_or_birth_certificate',
+            'photo',
+            'job_id',
+            'student_id',
+            'electric_bill',
+        ];
+
+        abort_unless(in_array($documentType, $allowedTypes, true), 404);
+
+        $path = $userDocument->{$documentType};
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->response($path);
+    }
+
+    public function documents(): View
+    {
+        abort_unless(auth()->user()?->isAdminUser(), 403);
+
+        return view('admin.documents', [
+            'documents' => UserDocument::query()
+                ->with('user')
+                ->latest()
+                ->get(),
+        ]);
     }
 
     private function notifyCustomer(int $customerId, string $title, string $message, string $targetRoute): void

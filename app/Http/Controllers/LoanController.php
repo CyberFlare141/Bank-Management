@@ -68,7 +68,6 @@ class LoanController extends Controller
         ];
 
         if ($context && $context->A_Number) {
-            $this->loanService->processPendingLoanRequests((int) $context->C_ID, (int) $context->A_Number);
             $loans = $this->accountService->getCustomerLoans((int) $context->C_ID);
             $this->loanService->applyMonthlyInterestForLoans($loans);
             $loans = $this->accountService->getCustomerLoans((int) $context->C_ID);
@@ -294,7 +293,7 @@ class LoanController extends Controller
             ], 422);
         }
 
-        $lock = Cache::lock('loan-disbursement-user-' . (int) $user->id, 10);
+        $lock = Cache::lock('loan-request-user-' . (int) $user->id, 10);
         if (!$lock->get()) {
             $this->auditLogService->log('loan_otp_verification', 'failed', [
                 'user_id' => (int) $user->id,
@@ -309,16 +308,15 @@ class LoanController extends Controller
         }
 
         try {
-            $this->loanService->disburseInstantLoan(
+            $this->loanService->submitLoanRequest(
                 (int) $payload['customer_id'],
-                (int) $payload['account_number'],
                 (int) $payload['branch_id'],
                 (float) $payload['requested_amount']
             );
 
             $user->notify(new BankingNotification(
-                'Loan Disbursed',
-                'Your instant loan of Tk ' . number_format((float) $payload['requested_amount'], 2) . ' has been disbursed to your account.',
+                'Loan Request Submitted',
+                'Your loan request for Tk ' . number_format((float) $payload['requested_amount'], 2) . ' is pending admin approval.',
                 'info',
                 'personal.loan'
             ));
@@ -329,14 +327,14 @@ class LoanController extends Controller
                 'customer_id' => (int) $payload['customer_id'],
                 'account_number' => (int) $payload['account_number'],
                 'entity_type' => 'loan',
-                'message' => 'Loan approved and disbursed successfully.',
+                'message' => 'Loan request submitted for admin approval.',
                 'request_payload' => $validated,
                 'response_payload' => [
                     'requested_amount' => (float) $payload['requested_amount'],
                     'branch_id' => (int) $payload['branch_id'],
                 ],
             ], $request);
-            return response()->json(['message' => 'Loan approved and disbursed successfully.']);
+            return response()->json(['message' => 'Loan request submitted successfully and is awaiting admin approval.']);
         } catch (ValidationException $e) {
             Cache::forget($cacheKey);
             $this->auditLogService->log('loan_otp_verification', 'failed', [
@@ -374,30 +372,31 @@ class LoanController extends Controller
         $user = auth()->user();
         $context = $this->accountService->getUserBankingContext((string) $user->email);
         if (!$context || !$context->A_Number) {
-            $this->auditLogService->log('loan_repayment', 'failed', [
+            $this->auditLogService->log('loan_request', 'failed', [
                 'user_id' => (int) $user->id,
                 'message' => 'Customer profile or account is missing.',
-                'request_payload' => $validated,
+                'request_payload' => [],
             ], $request);
             return back()->with('loan_error', 'Customer profile or account is missing. Please complete your profile and create an account first.');
         }
 
-        // Simplified flow for feature tests: create a processing loan request immediately.
         $branch = Branch::query()->first() ?: Branch::create([
             'B_Name' => 'Main Branch',
             'B_Location' => 'Test City',
             'IFSC_Code' => 'TEST' . random_int(1000, 9999),
         ]);
 
-        LoanRequest::query()->create([
-            'C_ID' => (int) $context->C_ID,
-            'B_ID' => (int) $branch->B_ID,
-            'requested_amount' => 30000.00,
-            'status' => 'processing',
-            'decision_note' => null,
-        ]);
+        try {
+            $this->loanService->submitLoanRequest(
+                (int) $context->C_ID,
+                (int) $branch->B_ID,
+                30000.00
+            );
+        } catch (ValidationException $e) {
+            return back()->with('loan_error', $e->validator->errors()->first() ?: 'Unable to submit loan request.');
+        }
 
-        return back()->with('loan_success', 'Loan request submitted successfully.');
+        return back()->with('loan_success', 'Loan request submitted successfully and is awaiting admin approval.');
     }
 
     public function repay(Request $request): RedirectResponse
@@ -414,9 +413,8 @@ class LoanController extends Controller
         }
 
         try {
-            $result = $this->loanService->repayLoan(
+            $this->loanService->submitRepaymentRequest(
                 (int) $context->C_ID,
-                (int) $context->A_Number,
                 (int) $validated['loan_id'],
                 (float) $validated['repayment_amount']
             );
@@ -448,13 +446,9 @@ class LoanController extends Controller
             return back()->with('loan_error', 'Repayment failed. Please try again.');
         }
 
-        $message = $result['requested_repayment'] > $result['applied_repayment']
-            ? 'Repayment processed. Extra amount was not charged because the loan is now fully paid.'
-            : 'Repayment processed successfully.';
-
         $user->notify(new BankingNotification(
-            'Loan Repayment Successful',
-            'Tk ' . number_format((float) $result['applied_repayment'], 2) . ' was applied to your loan repayment.',
+            'Loan Repayment Request Submitted',
+            'Your repayment request for Tk ' . number_format((float) $validated['repayment_amount'], 2) . ' is pending admin approval.',
             'info',
             'personal.loan'
         ));
@@ -465,12 +459,14 @@ class LoanController extends Controller
             'account_number' => (int) $context->A_Number,
             'entity_type' => 'loan',
             'entity_id' => (string) $validated['loan_id'],
-            'message' => 'Loan repayment processed successfully.',
+            'message' => 'Loan repayment request submitted for admin approval.',
             'request_payload' => $validated,
-            'response_payload' => $result,
+            'response_payload' => [
+                'repayment_amount' => (float) $validated['repayment_amount'],
+            ],
         ], $request);
 
-        return back()->with('loan_success', $message);
+        return back()->with('loan_success', 'Repayment request submitted successfully and is awaiting admin approval.');
     }
 
     private function otpCacheKey(int $userId): string

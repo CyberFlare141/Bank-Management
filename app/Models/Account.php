@@ -35,4 +35,9 @@ class Account extends Model
     {
         return $this->hasMany(Transaction::class, 'A_Number', 'A_Number');
     }
+
+    public function fixedDeposits(): HasMany
+    {
+        return $this->hasMany(FixedDeposit::class, 'A_Number', 'A_Number');
+    }
 }

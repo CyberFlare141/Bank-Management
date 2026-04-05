@@ -53,7 +53,7 @@
         }
 
         .scene-left::after {
-            content: '';
+            content: ';
             position: absolute;
             right: 0; top: 0; bottom: 0;
             width: 1px;
@@ -270,7 +270,7 @@
 
         /* Right subtle grid */
         .scene-right::before {
-            content: '';
+            content: ';
             position: absolute;
             inset: 0;
             background-image:
@@ -296,7 +296,7 @@
 
         /* Top shimmer line */
         .auth-card::before {
-            content: '';
+            content: ';
             position: absolute;
             top: 0; left: 10%; right: 10%;
             height: 1px;
@@ -385,6 +385,49 @@
         }
 
         .switcher a:hover { color: var(--text); }
+
+        .mode-switcher {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.45rem;
+            margin-bottom: 1.1rem;
+        }
+
+        .mode-btn {
+            border: 1px solid var(--border);
+            background: rgba(5, 10, 22, 0.7);
+            color: var(--muted);
+            border-radius: 10px;
+            padding: 0.7rem 0.8rem;
+            cursor: pointer;
+            font-family: 'Syne', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn:hover {
+            color: var(--text);
+            border-color: rgba(80,160,240,0.25);
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(135deg, var(--blue), var(--blue-bright));
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(59,158,255,0.3);
+        }
+
+        .mode-note {
+            margin-bottom: 1rem;
+            font-size: 0.78rem;
+            color: var(--muted);
+            line-height: 1.5;
+            padding: 0.75rem 0.9rem;
+            border-radius: 10px;
+            background: rgba(5, 10, 22, 0.55);
+            border: 1px solid rgba(80,160,240,0.1);
+        }
 
         /* Session status */
         .status-message {
@@ -547,7 +590,7 @@
         }
 
         .auth-btn::before {
-            content: '';
+            content: ';
             position: absolute;
             top: 0; left: -100%;
             width: 60%; height: 100%;
@@ -573,7 +616,7 @@
             color: var(--muted);
         }
         .auth-divider::before, .auth-divider::after {
-            content: '';
+            content: ';
             flex: 1;
             height: 1px;
             background: var(--border);
@@ -750,12 +793,22 @@
                 <a href="{{ route('register') }}" role="tab">Register</a>
             </div>
 
+            <div class="mode-switcher" role="tablist" aria-label="Login mode">
+                <button type="button" class="mode-btn active" id="personal-mode-btn" aria-pressed="true">Personal Login</button>
+                <button type="button" class="mode-btn" id="admin-mode-btn" aria-pressed="false">Admin Login</button>
+            </div>
+
+            <div class="mode-note" id="mode-note">
+                Sign in as a personal banking user with account number, password, and either email or phone number.
+            </div>
+
             <!-- Session status -->
             <x-auth-session-status class="status-message" :status="session('status')" />
 
             <!-- Form -->
             <form method="POST" action="{{ route('login') }}" id="login-form">
                 @csrf
+                <input type="hidden" id="login_mode" value="personal">
 
                 <div class="field">
                     <label for="account_number">Account Number</label>
@@ -781,7 +834,7 @@
                     <x-input-error :messages="$errors->get('email')" class="field-error" />
                 </div>
 
-                <div class="field">
+                <div class="field" id="phone-field">
                     <label for="phone_number">Phone Number</label>
                     <div class="input-shell">
                         <span class="field-icon">📞</span>
@@ -835,27 +888,75 @@
 </div>
 
 <script>
-    // Password toggle
+    const loginForm = document.getElementById('login-form');
+    const loginBtn = document.getElementById('login-btn');
+    const loginModeInput = document.getElementById('login_mode');
+    const personalModeBtn = document.getElementById('personal-mode-btn');
+    const adminModeBtn = document.getElementById('admin-mode-btn');
+    const phoneField = document.getElementById('phone-field');
+    const phoneInput = document.getElementById('phone_number');
     const pwToggle = document.getElementById('pw-toggle');
     const pwInput = document.getElementById('password');
+    const modeNote = document.getElementById('mode-note');
+    const mobileBrand = document.getElementById('mobile-brand');
+
+    const loginModeConfig = {
+        personal: {
+            action: "{{ route('login') }}",
+            buttonLabel: 'Sign In to MARS',
+            showPhone: true,
+            note: 'Sign in as a personal banking user with account number, password, and either email or phone number.',
+        },
+        admin: {
+            action: "{{ route('admin.login.submit') }}",
+            buttonLabel: 'Sign In as Admin',
+            showPhone: false,
+            note: 'Sign in as an administrator with the linked admin account number, email address, and password.',
+        },
+    };
+
+    function applyLoginMode(mode) {
+        const config = loginModeConfig[mode] ?? loginModeConfig.personal;
+        const isAdminMode = mode === 'admin';
+
+        loginModeInput.value = isAdminMode ? 'admin' : 'personal';
+        loginForm.action = config.action;
+        loginBtn.textContent = config.buttonLabel;
+        modeNote.textContent = config.note;
+
+        personalModeBtn.classList.toggle('active', !isAdminMode);
+        adminModeBtn.classList.toggle('active', isAdminMode);
+        personalModeBtn.setAttribute('aria-pressed', (!isAdminMode).toString());
+        adminModeBtn.setAttribute('aria-pressed', isAdminMode.toString());
+
+        phoneField.style.display = config.showPhone ? '' : 'none';
+        if (!config.showPhone) {
+            phoneInput.value = '';
+        }
+    }
+
+    personalModeBtn?.addEventListener('click', () => applyLoginMode('personal'));
+    adminModeBtn?.addEventListener('click', () => applyLoginMode('admin'));
+
     pwToggle?.addEventListener('click', () => {
         const isHidden = pwInput.type === 'password';
         pwInput.type = isHidden ? 'text' : 'password';
-        pwToggle.textContent = isHidden ? '🙈' : '👁';
+        pwToggle.textContent = isHidden ? 'Hide' : 'Show';
     });
 
-    // Button loading state
-    document.getElementById('login-form')?.addEventListener('submit', function() {
-        const btn = document.getElementById('login-btn');
-        btn.textContent = 'Signing in…';
-        btn.style.opacity = '0.75';
-        btn.disabled = true;
+    loginForm?.addEventListener('submit', function() {
+        loginBtn.textContent = loginModeInput.value === 'admin' ? 'Signing in as Admin...' : 'Signing in...';
+        loginBtn.style.opacity = '0.75';
+        loginBtn.disabled = true;
     });
 
-    // Show mobile brand on small screens
-    if (window.innerWidth <= 860) {
-        document.getElementById('mobile-brand').style.display = 'block';
+    if (window.innerWidth <= 860 && mobileBrand) {
+        mobileBrand.style.display = 'block';
     }
+
+    applyLoginMode('personal');
 </script>
 </body>
 </html>
+
+

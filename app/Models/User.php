@@ -59,6 +59,11 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasOne(Customer::class, 'C_Email', 'email');
     }
 
+    public function userDocument(): HasOne
+    {
+        return $this->hasOne(UserDocument::class);
+    }
+
     public function account(): HasOneThrough
     {
         return $this->hasOneThrough(

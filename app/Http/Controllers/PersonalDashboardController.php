@@ -3,17 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\Loan;
+use App\Services\AccountService;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class PersonalDashboardController extends Controller
 {
+    public function __construct(private readonly AccountService $accountService)
+    {
+    }
+
     public function index(): View
     {
         $user = auth()->user();
+        $context = $this->accountService->getUserBankingContext((string) $user->email);
 
         $user->load([
-            'account',
             'creditCard',
             'loans' => fn ($query) => $query->latest('created_at'),
             'cardApplications' => fn ($query) => $query->latest('card_applications.created_at')->limit(5),
@@ -28,7 +33,7 @@ class PersonalDashboardController extends Controller
 
         [$activeLoans, $loanSummary] = $this->buildLoanSummary(
             $user->loans,
-            (float) ($user->account->A_Balance ?? 0)
+            (float) ($context->A_Balance ?? 0)
         );
 
         $applicationNotifications = $user->unreadNotifications()
@@ -38,7 +43,7 @@ class PersonalDashboardController extends Controller
 
         return view('personal.dashboard', [
             'user' => $user,
-            'account' => $user->account,
+            'account' => $context,
             'creditCard' => $user->creditCard,
             'activeLoans' => $activeLoans,
             'recentTransactions' => $recentTransactions,

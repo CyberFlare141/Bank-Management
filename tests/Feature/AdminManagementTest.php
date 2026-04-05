@@ -7,8 +7,10 @@ use App\Models\Branch;
 use App\Models\CardApplication;
 use App\Models\Customer;
 use App\Models\LoanRequest;
+use App\Models\UserDocument;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AdminManagementTest extends TestCase
@@ -71,6 +73,7 @@ class AdminManagementTest extends TestCase
             'C_ID' => $customer->C_ID,
             'B_ID' => $branch->B_ID,
             'requested_amount' => 15000,
+            'request_type' => 'loan_request',
             'status' => 'processing',
         ]);
 
@@ -88,6 +91,54 @@ class AdminManagementTest extends TestCase
             'L_ID' => $loanRequest->approved_loan_id,
             'C_ID' => $customer->C_ID,
             'status' => 'approved',
+        ]);
+    }
+
+    public function test_admin_can_accept_repayment_request(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $user = User::factory()->create();
+        [$customer, $branch, $account] = $this->createCustomerWithAccount($user->email);
+
+        $loan = \App\Models\Loan::create([
+            'C_ID' => $customer->C_ID,
+            'B_ID' => $branch->B_ID,
+            'L_Type' => 'Personal Loan',
+            'L_Amount' => 1200,
+            'remaining_amount' => 800,
+            'Interest_Rate' => 3,
+            'status' => 'active',
+        ]);
+
+        $account->update(['A_Balance' => 2000]);
+
+        $repaymentRequest = LoanRequest::create([
+            'C_ID' => $customer->C_ID,
+            'B_ID' => $branch->B_ID,
+            'requested_amount' => 300,
+            'request_type' => 'repayment_request',
+            'target_loan_id' => $loan->L_ID,
+            'status' => 'processing',
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('admin.dashboard'))
+            ->post(route('admin.repayments.accept', $repaymentRequest))
+            ->assertRedirect(route('admin.dashboard'))
+            ->assertSessionHas('admin_success', 'Repayment request approved successfully.');
+
+        $loan->refresh();
+        $repaymentRequest->refresh();
+        $account->refresh();
+
+        $this->assertSame('accepted', $repaymentRequest->status);
+        $this->assertSame(500.0, (float) $loan->remaining_amount);
+        $this->assertSame(1700.0, (float) $account->A_Balance);
+        $this->assertDatabaseHas('transactions', [
+            'A_Number' => $account->A_Number,
+            'C_ID' => $customer->C_ID,
+            'T_Type' => 'Loan Repayment',
+            'T_Amount' => '300.00',
         ]);
     }
 
@@ -130,6 +181,66 @@ class AdminManagementTest extends TestCase
             'notifiable_id' => $user->id,
             'type' => \App\Notifications\ApplicationStatusNotification::class,
         ]);
+    }
+
+    public function test_admin_can_view_uploaded_registration_documents_from_loan_review(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->admin()->create();
+        $user = User::factory()->create();
+        [$customer, $branch] = $this->createCustomerWithAccount($user->email);
+
+        Storage::disk('local')->put('documents/' . $user->id . '/photo.jpg', 'photo');
+
+        $documents = UserDocument::create([
+            'user_id' => $user->id,
+            'account_type' => 'student',
+            'nid_or_birth_certificate' => 'documents/' . $user->id . '/nid.pdf',
+            'photo' => 'documents/' . $user->id . '/photo.jpg',
+            'job_id' => null,
+            'student_id' => 'documents/' . $user->id . '/student-id.pdf',
+            'electric_bill' => 'documents/' . $user->id . '/electric-bill.pdf',
+        ]);
+
+        LoanRequest::create([
+            'C_ID' => $customer->C_ID,
+            'B_ID' => $branch->B_ID,
+            'requested_amount' => 15000,
+            'request_type' => 'loan_request',
+            'status' => 'processing',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee('Loan Applications');
+
+        $this->actingAs($admin)
+            ->get(route('admin.user-documents.show', [$documents, 'photo']))
+            ->assertOk();
+    }
+
+    public function test_admin_can_browse_registration_documents_page(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $user = User::factory()->create();
+
+        UserDocument::create([
+            'user_id' => $user->id,
+            'account_type' => 'normal',
+            'nid_or_birth_certificate' => 'documents/' . $user->id . '/nid.pdf',
+            'photo' => 'documents/' . $user->id . '/photo.jpg',
+            'job_id' => 'documents/' . $user->id . '/job-id.pdf',
+            'student_id' => null,
+            'electric_bill' => 'documents/' . $user->id . '/electric-bill.pdf',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.documents'))
+            ->assertOk()
+            ->assertSee('Registration Documents')
+            ->assertSee($user->email);
     }
 
     private function createCustomerWithAccount(?string $email = null): array

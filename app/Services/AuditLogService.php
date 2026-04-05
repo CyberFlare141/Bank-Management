@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\DB;
 
 class AuditLogService
 {
+    private const MAX_MESSAGE_LENGTH = 255;
+
     public function log(
         string $actionType,
         string $status,
@@ -25,7 +27,7 @@ class AuditLogService
                 $context['entity_type'] ?? null,
                 $context['entity_id'] ?? null,
                 $status,
-                $context['message'] ?? null,
+                $this->normalizeMessage($context['message'] ?? null),
                 $request?->ip(),
                 $request?->userAgent(),
                 $this->encodePayload($context['request_payload'] ?? null),
@@ -68,5 +70,24 @@ class AuditLogService
         }
 
         return $sanitized;
+    }
+
+    private function normalizeMessage(mixed $message): ?string
+    {
+        if ($message === null) {
+            return null;
+        }
+
+        $message = trim((string) $message);
+
+        if ($message === '') {
+            return null;
+        }
+
+        if (mb_strlen($message) <= self::MAX_MESSAGE_LENGTH) {
+            return $message;
+        }
+
+        return rtrim(mb_substr($message, 0, self::MAX_MESSAGE_LENGTH - 3)) . '...';
     }
 }
