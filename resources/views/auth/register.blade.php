@@ -239,6 +239,7 @@
             justify-content: center;
             padding: 2rem 3rem;
             position: relative;
+            min-width: 0;
             background:
                 radial-gradient(ellipse at 40% 20%, rgba(196,147,74,0.06), transparent 55%),
                 radial-gradient(ellipse at 70% 80%, rgba(24,104,196,0.07), transparent 50%),
@@ -261,6 +262,7 @@
             position: relative;
             z-index: 2;
             width: min(580px, 100%);
+            max-width: 100%;
             background: var(--panel);
             border: 1px solid var(--border);
             border-radius: 24px;
@@ -332,12 +334,16 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 0 0.9rem;
+            min-width: 0;
         }
 
         .field-full { grid-column: 1 / -1; }
 
         /* Fields */
-        .field { margin-bottom: 0.9rem; }
+        .field {
+            margin-bottom: 0.9rem;
+            min-width: 0;
+        }
 
         .field label {
             display: block;
@@ -360,6 +366,8 @@
             border-radius: 11px;
             overflow: hidden;
             transition: border-color 0.2s, box-shadow 0.2s;
+            min-width: 0;
+            width: 100%;
         }
 
         .input-shell:focus-within {
@@ -385,7 +393,7 @@
 
         .input-shell input,
         .input-shell select {
-            flex: 1;
+            flex: 1 1 0%;
             background: transparent;
             border: none;
             outline: none;
@@ -394,6 +402,8 @@
             font-family: 'DM Sans', sans-serif;
             padding: 0.65rem 0.75rem;
             min-width: 0;
+            width: 100%;
+            max-width: 100%;
         }
 
         .input-shell input::placeholder { color: rgba(106,135,170,0.45); }
@@ -401,6 +411,22 @@
         .input-shell input[type="file"] {
             padding-top: 0.55rem;
             padding-bottom: 0.55rem;
+            font-size: 0.8rem;
+            line-height: 1.3;
+            color: var(--muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .input-shell input[type="file"]::file-selector-button {
+            border: 1px solid rgba(80,160,240,0.18);
+            background: rgba(255,255,255,0.06);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 0.45rem 0.75rem;
+            margin-right: 0.75rem;
+            cursor: pointer;
         }
 
         /* Password strength */
